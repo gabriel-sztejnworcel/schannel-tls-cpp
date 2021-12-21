@@ -18,9 +18,21 @@
     <ClInclude Include="tcp.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="tls.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="schannel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="tcp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tls.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="schannel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
