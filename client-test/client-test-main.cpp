@@ -16,13 +16,13 @@ int main()
     {
         tcp_init();
 
-        SOCKET socket = tcp_connect(SERVER_HOSTNAME, SERVER_PORT);
+        SOCKET sock = tcp_connect(SERVER_HOSTNAME, SERVER_PORT);
         while (true)
         {
             std::string str;
             std::getline(std::cin, str);
 
-            tcp_send(socket, str.c_str(), str.length());
+            tcp_send(sock, str.c_str(), (int)str.length());
 
             if (str == "exit")
             {

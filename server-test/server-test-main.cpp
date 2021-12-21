@@ -8,7 +8,6 @@
 
 #include "tcp.h"
 
-#define SERVER_HOSTNAME "localhost"
 #define SERVER_PORT 8443
 #define BUFFER_SIZE 16384
 
@@ -20,7 +19,7 @@ int main()
     {
         tcp_init();
 
-        SOCKET listen_socket = tcp_listen(SERVER_HOSTNAME, SERVER_PORT);
+        SOCKET listen_socket = tcp_listen(SERVER_PORT);
         while (true)
         {
             SOCKET connection_socket = tcp_accept(listen_socket);

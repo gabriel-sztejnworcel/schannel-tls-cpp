@@ -1,37 +1,127 @@
 
+#pragma comment(lib, "ws2_32")
+
 #include "tcp.h"
+
+#include <Windows.h>
+#include <winsock.h>
+
+#define BACKLOG 10
 
 void tcp_init()
 {
-
+    WSADATA wsa_data;
+    int rc = WSAStartup(MAKEWORD(1, 1), &wsa_data);
+    if (rc != 0)
+    {
+        throw std::runtime_error("WSAStartup: " + std::to_string(GetLastError()));
+    }
 }
 
-SOCKET tcp_listen(const std::string& hostname, size_t port)
+SOCKET tcp_listen(short port)
 {
-    return 0;
+    SOCKET listen_sock = socket(
+        PF_INET,
+        SOCK_STREAM,
+        0
+    );
+
+    if (listen_sock == INVALID_SOCKET)
+    {
+        throw std::runtime_error("socket: " + std::to_string(GetLastError()));
+    }
+
+    SOCKADDR_IN sin = { 0 };
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = 0;
+    sin.sin_port = htons(port);
+
+    int rc = bind(listen_sock, (SOCKADDR*)&sin, sizeof(sin));
+    if (rc == SOCKET_ERROR)
+    {
+        throw std::runtime_error("bind: " + std::to_string(GetLastError()));
+    }
+
+    rc = listen(listen_sock, BACKLOG);
+    if (rc == SOCKET_ERROR)
+    {
+        throw std::runtime_error("listen: " + std::to_string(GetLastError()));
+    }
+
+    return listen_sock;
 }
 
-SOCKET tcp_accept(SOCKET listen_socket)
+SOCKET tcp_accept(SOCKET listen_sock)
 {
-    return 0;
+    SOCKET connection_sock = accept(listen_sock, nullptr, nullptr);
+    if (connection_sock == INVALID_SOCKET)
+    {
+        throw std::runtime_error("accept: " + std::to_string(GetLastError()));
+    }
+
+    return connection_sock;
 }
 
-SOCKET tcp_connect(const std::string& hostname, size_t port)
+SOCKET tcp_connect(const std::string& hostname, short port)
 {
-    return 0;
+    ULONG address = inet_addr(hostname.c_str());
+    if (address == INADDR_NONE)
+    {
+        hostent* host = gethostbyname(hostname.c_str());
+        if (host == nullptr)
+        {
+            throw std::runtime_error("Could not resolve host name");
+        }
+
+        memcpy((char*)&address, host->h_addr_list[0], host->h_length);
+    }
+
+    SOCKET sock = socket(
+        PF_INET,
+        SOCK_STREAM,
+        0
+    );
+
+    if (sock == INVALID_SOCKET)
+    {
+        throw std::runtime_error("socket: " + std::to_string(GetLastError()));
+    }
+
+    SOCKADDR_IN sin = { 0 };
+    sin.sin_family = AF_INET;
+    sin.sin_addr.s_addr = address;
+    sin.sin_port = htons(port);
+
+    int rc = connect(sock, (sockaddr*)&sin, sizeof(sin));
+    if (rc != 0)
+    {
+        throw std::runtime_error("connect: " + std::to_string(rc));
+    }
+
+    return sock;
 }
 
-size_t tcp_send(SOCKET socket, const char* buf, size_t len)
+int tcp_send(SOCKET sock, const char* buf, int len)
 {
-    return 0;
+    int rc = send(sock, buf, len, 0);
+    if (rc == SOCKET_ERROR)
+    {
+        throw std::runtime_error("send: " + std::to_string(GetLastError()));
+    }
+    return rc;
 }
 
-size_t tcp_recv(SOCKET socket, char* buf, size_t len)
+int tcp_recv(SOCKET sock, char* buf, int len)
 {
-    return 0;
+    int rc = recv(sock, buf, len, 0);
+    if (rc == SOCKET_ERROR)
+    {
+        throw std::runtime_error("recv: " + std::to_string(GetLastError()));
+    }
+    return rc;
 }
 
-void tcp_close_socket(SOCKET socket)
+void tcp_close_socket(SOCKET sock)
 {
-
+    closesocket(sock);
 }
