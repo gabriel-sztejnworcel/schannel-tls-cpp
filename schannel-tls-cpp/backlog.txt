@@ -1,0 +1,4 @@
+- design
+- review (buffers)
+- certificates (store, file, client)
+- tests library

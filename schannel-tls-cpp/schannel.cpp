@@ -376,3 +376,103 @@ SecHandle establish_client_security_context(CredHandle client_cred_handle, const
 
     return security_context_handle;
 }
+
+SecPkgContext_StreamSizes get_stream_sizes(SecHandle security_context)
+{
+    SecPkgContext_StreamSizes stream_sizes = { 0 };
+
+    SECURITY_STATUS sec_status = QueryContextAttributes(
+        &security_context,
+        SECPKG_ATTR_STREAM_SIZES,
+        &stream_sizes
+    );
+
+    if (sec_status != SEC_E_OK)
+    {
+        std::stringstream str_stream;
+        str_stream << "QueryContextAttributes: " << std::hex << sec_status;
+        throw std::runtime_error(str_stream.str());
+    }
+
+    return stream_sizes;
+}
+
+Buffer encrypt_message(const char* buf, size_t len, const SecPkgContext_StreamSizes& stream_sizes, SecHandle security_context)
+{
+    unsigned long msg_size = min((unsigned long)len, stream_sizes.cbMaximumMessage);
+    unsigned long buffer_size = stream_sizes.cbHeader + msg_size + stream_sizes.cbTrailer;
+    auto encrypt_buf = std::make_unique<char[]>(buffer_size);
+
+    SecBuffer secure_buffers[] = {
+        { stream_sizes.cbHeader, SECBUFFER_STREAM_HEADER, encrypt_buf.get() },
+        { msg_size, SECBUFFER_DATA, encrypt_buf.get() + stream_sizes.cbHeader },
+        { stream_sizes.cbTrailer, SECBUFFER_STREAM_TRAILER, encrypt_buf.get() + stream_sizes.cbHeader + msg_size },
+        { 0, SECBUFFER_EMPTY, nullptr }
+    };
+
+    SecBufferDesc secure_buffer_desc = { 0 };
+    secure_buffer_desc.ulVersion = SECBUFFER_VERSION;
+    secure_buffer_desc.cBuffers = 4;
+    secure_buffer_desc.pBuffers = secure_buffers;
+
+    memset(encrypt_buf.get(), 0, buffer_size);
+    memcpy(secure_buffers[1].pvBuffer, buf, msg_size);
+
+    SECURITY_STATUS sec_status = EncryptMessage(
+        &security_context,
+        0,
+        &secure_buffer_desc,
+        0
+    );
+
+    if (sec_status != SEC_E_OK)
+    {
+        std::stringstream str_stream;
+        str_stream << "EncryptMessage: " << std::hex << sec_status;
+        throw std::runtime_error(str_stream.str());
+    }
+
+    return Buffer{ std::move(encrypt_buf), buffer_size };
+}
+
+Buffer decrypt_message(const char* buf, size_t len, const SecPkgContext_StreamSizes& stream_sizes, SecHandle security_context)
+{
+    unsigned long msg_size = min((unsigned long)len, stream_sizes.cbMaximumMessage);
+    auto decrypt_buf = std::make_unique<char[]>(msg_size);
+
+    SecBuffer secure_buffers[] = {
+        { (unsigned long)len, SECBUFFER_DATA, decrypt_buf.get() },
+        { 0, SECBUFFER_EMPTY, nullptr },
+        { 0, SECBUFFER_EMPTY, nullptr },
+        { 0, SECBUFFER_EMPTY, nullptr }
+    };
+
+    SecBufferDesc secure_buffer_desc = { 0 };
+    secure_buffer_desc.ulVersion = SECBUFFER_VERSION;
+    secure_buffer_desc.cBuffers = 4;
+    secure_buffer_desc.pBuffers = secure_buffers;
+
+    memset(decrypt_buf.get(), 0, msg_size);
+    memcpy(decrypt_buf.get(), buf, msg_size);
+
+    SECURITY_STATUS sec_status = DecryptMessage(
+        &security_context,
+        &secure_buffer_desc,
+        0,
+        nullptr
+    );
+
+    if (sec_status != SEC_E_OK)
+    {
+        std::stringstream str_stream;
+        str_stream << "DecryptMessage: " << std::hex << sec_status;
+        throw std::runtime_error(str_stream.str());
+    }
+
+    Buffer return_buffer;
+    return_buffer.size = secure_buffers[1].cbBuffer;
+    return_buffer.data = std::make_unique<char[]>(return_buffer.size);
+    memcpy(return_buffer.data.get(), secure_buffers[1].pvBuffer, return_buffer.size);
+    
+    return return_buffer;
+}

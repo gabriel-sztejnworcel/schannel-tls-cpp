@@ -11,6 +11,7 @@ struct TLSSocket
 {
     SOCKET tcp_sock;
     SecHandle security_context;
+    SecPkgContext_StreamSizes stream_sizes;
 };
 
 TLSSocket tls_accept(SOCKET tcp_sock);
