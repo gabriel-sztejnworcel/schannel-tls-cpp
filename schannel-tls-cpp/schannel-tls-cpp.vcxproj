@@ -124,6 +124,9 @@
     <ClCompile Include="tcp.cpp" />
     <ClCompile Include="tls.cpp" />
   </ItemGroup>
+  <ItemGroup>
+    <Text Include="backlog.txt" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
