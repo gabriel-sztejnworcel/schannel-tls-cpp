@@ -48,6 +48,11 @@ void TCPSocket::close()
     ::closesocket(win_sock_);
 }
 
+SOCKET TCPSocket::win_sock()
+{
+    return win_sock_;
+}
+
 TCPSocket TCPClient::connect(const std::string& hostname, short port)
 {
     ULONG address = inet_addr(hostname.c_str());

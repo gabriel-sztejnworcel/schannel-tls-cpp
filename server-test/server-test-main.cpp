@@ -58,7 +58,57 @@
 //    tcp_close_socket(tls_sock.tcp_sock);
 //}
 
-void connection_handler(TCPSocket tcp_socket);
+//void connection_handler(TCPSocket tcp_socket);
+//
+//int main()
+//{
+//    try
+//    {
+//        winsock_init();
+//
+//        TCPServer tcp_server;
+//        tcp_server.listen(SERVER_PORT);
+//
+//        while (true)
+//        {
+//            auto tcp_socket = tcp_server.accept();
+//
+//            std::thread connection_thread([tcp_socket]()
+//            {
+//                connection_handler(tcp_socket);
+//            });
+//
+//            connection_thread.detach();
+//        }
+//    }
+//    catch (const std::exception& ex)
+//    {
+//        std::cerr << "ERROR: " << ex.what() << std::endl;
+//    }
+//}
+//
+//void connection_handler(TCPSocket tcp_socket)
+//{
+//    char buf[BUFFER_SIZE] = { 0 };
+//
+//    while (true)
+//    {
+//        memset(buf, 0, BUFFER_SIZE);
+//        int bytes_received = tcp_socket.recv(buf, BUFFER_SIZE);
+//
+//        std::string str(buf, bytes_received);
+//        std::cout << "Received: " << str << std::endl;
+//
+//        if (str == "exit")
+//        {
+//            break;
+//        }
+//    }
+//
+//    tcp_socket.close();
+//}
+
+void connection_handler(TLSSocket tls_socket);
 
 int main()
 {
@@ -66,17 +116,19 @@ int main()
     {
         winsock_init();
 
-        TCPServer tcp_server;
-        tcp_server.listen(SERVER_PORT);
+        TLSConfig tls_config;
+        TLSServer tls_server(tls_config);
+        tls_server.listen(SERVER_PORT);
 
         while (true)
         {
-            auto tcp_socket = tcp_server.accept();
+            auto tls_socket = tls_server.accept();
 
-            std::thread connection_thread([tcp_socket]()
+            std::thread connection_thread([tls_socket]()
             {
-                connection_handler(tcp_socket);
+                connection_handler(tls_socket);
             });
+
             connection_thread.detach();
         }
     }
@@ -86,14 +138,14 @@ int main()
     }
 }
 
-void connection_handler(TCPSocket tcp_socket)
+void connection_handler(TLSSocket tls_socket)
 {
     char buf[BUFFER_SIZE] = { 0 };
 
     while (true)
     {
         memset(buf, 0, BUFFER_SIZE);
-        int bytes_received = tcp_socket.recv(buf, BUFFER_SIZE);
+        int bytes_received = tls_socket.recv(buf, BUFFER_SIZE);
 
         std::string str(buf, bytes_received);
         std::cout << "Received: " << str << std::endl;
@@ -104,5 +156,5 @@ void connection_handler(TCPSocket tcp_socket)
         }
     }
 
-    tcp_socket.close();
+    tls_socket.close();
 }
