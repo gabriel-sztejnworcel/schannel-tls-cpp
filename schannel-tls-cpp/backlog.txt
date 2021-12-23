@@ -1,4 +1,6 @@
 - design
-- review (buffers)
+- review (buffers, schannel usage)
 - certificates (store, file, client)
 - tests library
+- exceptions + messages
+- int/size_t/long
