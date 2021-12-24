@@ -61,6 +61,11 @@ const CERT_CONTEXT* SchannelHelper::get_certificate()
     return cert_context;
 }
 
+void SchannelHelper::free_cert_context(const CERT_CONTEXT* cert_context)
+{
+    CertFreeCertificateContext(cert_context);
+}
+
 CredHandle SchannelHelper::get_schannel_server_handle(const CERT_CONTEXT* cert_context)
 {
     SCHANNEL_CRED cred_data = { 0 };

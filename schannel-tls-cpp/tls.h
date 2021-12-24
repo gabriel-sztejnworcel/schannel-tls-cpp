@@ -36,6 +36,7 @@ class TLSServer
 {
 public:
     TLSServer(TLSConfig tls_config);
+    ~TLSServer();
 
     void listen(const std::string& hostname, short port);
     TLSSocket accept();
@@ -44,6 +45,8 @@ public:
 private:
     TLSConfig tls_config_;
     TCPServer tcp_server_;
+    const CERT_CONTEXT* cert_context_;
+    CredHandle server_cred_handle_;
 };
 
 class TLSClient
@@ -55,4 +58,5 @@ public:
 private:
     TLSConfig tls_config_;
     TCPClient tcp_client;
+    CredHandle client_cred_handle_;
 };

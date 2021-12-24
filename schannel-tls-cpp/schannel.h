@@ -13,6 +13,7 @@ class SchannelHelper
 {
 public:
     static const CERT_CONTEXT* get_certificate();
+    static void free_cert_context(const CERT_CONTEXT* cert_context);
     static CredHandle get_schannel_server_handle(const CERT_CONTEXT* cert_context);
     static CredHandle get_schannel_client_handle();
 

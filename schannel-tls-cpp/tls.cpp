@@ -46,23 +46,31 @@ TCPSocket TLSSocket::scp_socket()
 }
 
 TLSServer::TLSServer(TLSConfig tls_config) :
-    tls_config_(tls_config)
+    tls_config_(tls_config), cert_context_(nullptr), server_cred_handle_({ 0 })
 {
 
+}
+
+TLSServer::~TLSServer()
+{
+    if (cert_context_ != nullptr)
+    {
+        SchannelHelper::free_cert_context(cert_context_);
+    }
 }
 
 void TLSServer::listen(const std::string& hostname, short port)
 {
     tcp_server_.listen(hostname, port);
+    
+    cert_context_ = SchannelHelper::get_certificate();
+    server_cred_handle_ = SchannelHelper::get_schannel_server_handle(cert_context_);
 }
 
 TLSSocket TLSServer::accept()
 {
-    // TODO: handle exceptions
     auto tcp_socket = tcp_server_.accept();
-    const CERT_CONTEXT* cert_context = SchannelHelper::get_certificate();
-    CredHandle server_cred_handle = SchannelHelper::get_schannel_server_handle(cert_context);
-    SecHandle security_context = SchannelHelper::establish_server_security_context(server_cred_handle, tcp_socket);
+    SecHandle security_context = SchannelHelper::establish_server_security_context(server_cred_handle_, tcp_socket);
     return TLSSocket(tcp_socket, security_context);
 }
 
@@ -74,13 +82,12 @@ void TLSServer::close()
 TLSClient::TLSClient(TLSConfig tls_config) :
     tls_config_(tls_config)
 {
-
+    client_cred_handle_ = SchannelHelper::get_schannel_client_handle();
 }
 
 TLSSocket TLSClient::connect(const std::string& hostname, short port)
 {
     auto tcp_socket = tcp_client.connect(hostname, port);
-    CredHandle client_cred_handle = SchannelHelper::get_schannel_client_handle();
-    SecHandle security_context = SchannelHelper::establish_client_security_context(client_cred_handle, hostname, tcp_socket);
+    SecHandle security_context = SchannelHelper::establish_client_security_context(client_cred_handle_, hostname, tcp_socket);
     return TLSSocket(tcp_socket, security_context);
 }
