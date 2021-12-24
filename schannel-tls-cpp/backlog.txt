@@ -1,13 +1,18 @@
+- review schannel (+buffers) V
+- config: certificates (store, file, client), protocol version, ciphers
+- exceptions + messages
+- add tests
+- alert buffer in initialize/accept
+
+- add sample client/server
+- readme
+
+- close in d'tors / pass references
+- memory leaks
+- how it handles stream/packets
+
 - design V
 - review tcp (+buffers) V
 - review tls V
-- review schannel (+buffers)
-- config: certificates (store, file, client), protocol version, ciphers
 - tests library V
-- exceptions + messages
 - int/size_t/long V
-- close in d'tors / pass references
-- add tests
-- add sample client/server
-- readme
-- memory leaks

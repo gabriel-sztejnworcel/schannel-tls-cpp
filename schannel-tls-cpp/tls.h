@@ -24,7 +24,7 @@ public:
     void close();
 
     // Get underlying tcp socket for lower level operations
-    TCPSocket scp_socket();
+    TCPSocket tcp_socket();
 
 private:
     TCPSocket tcp_socket_;
@@ -53,6 +53,8 @@ class TLSClient
 {
 public:
     TLSClient(TLSConfig tls_config);
+    ~TLSClient();
+
     TLSSocket connect(const std::string& hostname, short port);
 
 private:

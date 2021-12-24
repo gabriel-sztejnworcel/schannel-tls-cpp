@@ -16,9 +16,11 @@ public:
     static void free_cert_context(const CERT_CONTEXT* cert_context);
     static CredHandle get_schannel_server_handle(const CERT_CONTEXT* cert_context);
     static CredHandle get_schannel_client_handle();
+    static void free_cred_handle(CredHandle* cred_handle);
 
     static SecHandle establish_server_security_context(CredHandle server_cred_handle, TCPSocket tcp_socket);
     static SecHandle establish_client_security_context(CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket);
+    static void delete_security_context(SecHandle* security_context);
 
     static SecPkgContext_StreamSizes get_stream_sizes(SecHandle security_context);
 

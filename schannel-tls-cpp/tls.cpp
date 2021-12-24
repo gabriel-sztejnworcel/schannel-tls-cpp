@@ -38,9 +38,10 @@ int TLSSocket::recv(char* buf, int len)
 void TLSSocket::close()
 {
     tcp_socket_.close();
+    SchannelHelper::delete_security_context(&security_context_);
 }
 
-TCPSocket TLSSocket::scp_socket()
+TCPSocket TLSSocket::tcp_socket()
 {
     return tcp_socket_;
 }
@@ -56,6 +57,7 @@ TLSServer::~TLSServer()
     if (cert_context_ != nullptr)
     {
         SchannelHelper::free_cert_context(cert_context_);
+        SchannelHelper::free_cred_handle(&server_cred_handle_);
     }
 }
 
@@ -83,6 +85,11 @@ TLSClient::TLSClient(TLSConfig tls_config) :
     tls_config_(tls_config)
 {
     client_cred_handle_ = SchannelHelper::get_schannel_client_handle();
+}
+
+TLSClient::~TLSClient()
+{
+    SchannelHelper::free_cred_handle(&client_cred_handle_);
 }
 
 TLSSocket TLSClient::connect(const std::string& hostname, short port)
