@@ -1,6 +1,4 @@
 
-#pragma comment(lib, "schannel-tls-cpp")
-
 #include "pch.h"
 
 #include <tcp.h>
