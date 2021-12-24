@@ -3,6 +3,9 @@
 
 #include <WS2tcpip.h>
 
+#include <memory>
+#include <functional>
+
 #include "tcp.h"
 
 #define BACKLOG 10
@@ -66,6 +69,9 @@ TCPSocket TCPClient::connect(const std::string& hostname, short port)
         throw std::runtime_error("getaddrinfo: " + std::to_string(WSAGetLastError()));
     }
 
+    // Bind to unique ptr to it will be released at the end
+    std::unique_ptr<addrinfo, std::function<void(addrinfo*)>> server_info_uptr(server_info, freeaddrinfo); 
+    
     bool connected = false;
     SOCKET win_sock = INVALID_SOCKET;
     for (
@@ -84,9 +90,11 @@ TCPSocket TCPClient::connect(const std::string& hostname, short port)
             throw std::runtime_error("socket: " + std::to_string(WSAGetLastError()));
         }
 
-        int rc = ::connect(win_sock, server_info_current->ai_addr, server_info_current->ai_addrlen);
+        int rc = ::connect(win_sock, server_info_current->ai_addr, (int)server_info_current->ai_addrlen);
         if (rc != 0)
         {
+            closesocket(win_sock);
+            win_sock = INVALID_SOCKET;
             continue;
         }
         
@@ -102,34 +110,62 @@ TCPSocket TCPClient::connect(const std::string& hostname, short port)
     return TCPSocket(win_sock);
 }
 
-void TCPServer::listen(short port)
+void TCPServer::listen(const std::string& hostname, short port)
 {
-    SOCKET listen_sock = socket(
-        PF_INET,
-        SOCK_STREAM,
-        0
-    );
+    addrinfo hints = { 0 };
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-    if (listen_sock == INVALID_SOCKET)
+    auto port_str = std::to_string(port);
+    addrinfo* server_info = nullptr;
+    int rc = getaddrinfo(hostname.c_str(), port_str.c_str(), &hints, &server_info);
+    if (rc != 0)
     {
-        throw std::runtime_error("socket: " + std::to_string(GetLastError()));
+        throw std::runtime_error("getaddrinfo: " + std::to_string(WSAGetLastError()));
     }
 
-    SOCKADDR_IN sin = { 0 };
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = 0;
-    sin.sin_port = htons(port);
+    // Bind to unique ptr to it will be released at the end
+    std::unique_ptr<addrinfo, std::function<void(addrinfo*)>> server_info_uptr(server_info, freeaddrinfo);
 
-    int rc = bind(listen_sock, (SOCKADDR*)&sin, sizeof(sin));
-    if (rc == SOCKET_ERROR)
+    bool bound = false;
+    SOCKET listen_sock = INVALID_SOCKET;
+    for (
+        addrinfo* server_info_current = server_info;
+        server_info_current != nullptr;
+        server_info_current = server_info_current->ai_next)
     {
-        throw std::runtime_error("bind: " + std::to_string(GetLastError()));
+        listen_sock = socket(
+            PF_INET,
+            SOCK_STREAM,
+            0
+        );
+
+        if (listen_sock == INVALID_SOCKET)
+        {
+            throw std::runtime_error("socket: " + std::to_string(WSAGetLastError()));
+        }
+
+        int rc = bind(listen_sock, server_info_current->ai_addr, (int)server_info_current->ai_addrlen);
+        if (rc == SOCKET_ERROR)
+        {
+            closesocket(listen_sock);
+            listen_sock = INVALID_SOCKET;
+            continue;
+        }
+
+        bound = true;
+        break;
+    }
+
+    if (!bound)
+    {
+        throw std::runtime_error("Failed to bind socket");
     }
 
     rc = ::listen(listen_sock, BACKLOG);
     if (rc == SOCKET_ERROR)
     {
-        throw std::runtime_error("listen: " + std::to_string(GetLastError()));
+        throw std::runtime_error("listen: " + std::to_string(WSAGetLastError()));
     }
 
     listen_sock_ = listen_sock;
@@ -145,7 +181,7 @@ TCPSocket TCPServer::accept()
     SOCKET connection_sock = ::accept(listen_sock_, nullptr, nullptr);
     if (connection_sock == INVALID_SOCKET)
     {
-        throw std::runtime_error("accept: " + std::to_string(GetLastError()));
+        throw std::runtime_error("accept: " + std::to_string(WSAGetLastError()));
     }
 
     return TCPSocket(connection_sock);

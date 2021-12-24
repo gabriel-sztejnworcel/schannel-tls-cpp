@@ -32,7 +32,7 @@ public:
 class TCPServer
 {
 public:
-    void listen(short port);
+    void listen(const std::string& hostname, short port);
     TCPSocket accept();
     void close();
 

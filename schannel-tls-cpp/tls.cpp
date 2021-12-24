@@ -51,9 +51,9 @@ TLSServer::TLSServer(TLSConfig tls_config) :
 
 }
 
-void TLSServer::listen(short port)
+void TLSServer::listen(const std::string& hostname, short port)
 {
-    tcp_server_.listen(port);
+    tcp_server_.listen(hostname, port);
 }
 
 TLSSocket TLSServer::accept()

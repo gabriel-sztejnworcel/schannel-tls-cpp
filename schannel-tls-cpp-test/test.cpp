@@ -29,7 +29,7 @@ TEST(tcp_tests, test_simple_tcp_client_server)
         try
         {
             TCPServer tcp_server;
-            tcp_server.listen(TCP_SERVER_PORT);
+            tcp_server.listen(SERVER_HOSTNAME, TCP_SERVER_PORT);
 
             auto tcp_socket = tcp_server.accept();
             char buf[BUFFER_SIZE] = { 0 };
@@ -83,7 +83,7 @@ TEST(tls_tests, test_simple_tls_client_server)
         {
             TLSConfig tls_config;
             TLSServer tls_server(tls_config);
-            tls_server.listen(TLS_SERVER_PORT);
+            tls_server.listen(SERVER_HOSTNAME, TLS_SERVER_PORT);
 
             auto tls_socket = tls_server.accept();
             char buf[BUFFER_SIZE] = { 0 };

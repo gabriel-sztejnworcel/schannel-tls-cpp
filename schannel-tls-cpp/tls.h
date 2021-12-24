@@ -37,7 +37,7 @@ class TLSServer
 public:
     TLSServer(TLSConfig tls_config);
 
-    void listen(short port);
+    void listen(const std::string& hostname, short port);
     TLSSocket accept();
     void close();
 
