@@ -34,6 +34,7 @@ class TCPServer
 public:
     void listen(short port);
     TCPSocket accept();
+    void close();
 
 private:
     SOCKET listen_sock_ = INVALID_SOCKET;

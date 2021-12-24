@@ -66,6 +66,11 @@ TLSSocket TLSServer::accept()
     return TLSSocket(tcp_socket, security_context);
 }
 
+void TLSServer::close()
+{
+    tcp_server_.close();
+}
+
 TLSClient::TLSClient(TLSConfig tls_config) :
     tls_config_(tls_config)
 {

@@ -5,15 +5,7 @@ VisualStudioVersion = 15.0.27130.2010
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "schannel-tls-cpp", "schannel-tls-cpp\schannel-tls-cpp.vcxproj", "{B9D12558-87F9-42E0-99B4-6C7DAC6DE516}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "server-test", "server-test\server-test.vcxproj", "{DCED9C01-1A92-4E24-980A-07E81D5C58B4}"
-	ProjectSection(ProjectDependencies) = postProject
-		{B9D12558-87F9-42E0-99B4-6C7DAC6DE516} = {B9D12558-87F9-42E0-99B4-6C7DAC6DE516}
-	EndProjectSection
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "client-test", "client-test\client-test.vcxproj", "{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}"
-	ProjectSection(ProjectDependencies) = postProject
-		{B9D12558-87F9-42E0-99B4-6C7DAC6DE516} = {B9D12558-87F9-42E0-99B4-6C7DAC6DE516}
-	EndProjectSection
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "schannel-tls-cpp-test", "schannel-tls-cpp-test\schannel-tls-cpp-test.vcxproj", "{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -31,22 +23,14 @@ Global
 		{B9D12558-87F9-42E0-99B4-6C7DAC6DE516}.Release|x64.Build.0 = Release|x64
 		{B9D12558-87F9-42E0-99B4-6C7DAC6DE516}.Release|x86.ActiveCfg = Release|Win32
 		{B9D12558-87F9-42E0-99B4-6C7DAC6DE516}.Release|x86.Build.0 = Release|Win32
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Debug|x64.ActiveCfg = Debug|x64
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Debug|x64.Build.0 = Debug|x64
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Debug|x86.ActiveCfg = Debug|Win32
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Debug|x86.Build.0 = Debug|Win32
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Release|x64.ActiveCfg = Release|x64
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Release|x64.Build.0 = Release|x64
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Release|x86.ActiveCfg = Release|Win32
-		{DCED9C01-1A92-4E24-980A-07E81D5C58B4}.Release|x86.Build.0 = Release|Win32
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Debug|x64.ActiveCfg = Debug|x64
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Debug|x64.Build.0 = Debug|x64
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Debug|x86.ActiveCfg = Debug|Win32
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Debug|x86.Build.0 = Debug|Win32
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Release|x64.ActiveCfg = Release|x64
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Release|x64.Build.0 = Release|x64
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Release|x86.ActiveCfg = Release|Win32
-		{E4F76B92-DA7B-4D7B-94BF-99DE4437DE72}.Release|x86.Build.0 = Release|Win32
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Debug|x64.ActiveCfg = Debug|x64
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Debug|x64.Build.0 = Debug|x64
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Debug|x86.ActiveCfg = Debug|Win32
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Debug|x86.Build.0 = Debug|Win32
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Release|x64.ActiveCfg = Release|x64
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Release|x64.Build.0 = Release|x64
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Release|x86.ActiveCfg = Release|Win32
+		{A17A0BE6-1FB1-412F-866C-00B7E28ED08D}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

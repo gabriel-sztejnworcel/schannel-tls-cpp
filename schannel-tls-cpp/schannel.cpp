@@ -399,12 +399,12 @@ SecPkgContext_StreamSizes SchannelHelper::get_stream_sizes(SecHandle security_co
 
 int SchannelHelper::encrypt_message(SecHandle security_context, SecPkgContext_StreamSizes stream_sizes, const char* in_buf, int in_len, char* out_buf, int out_len)
 {
-    if (in_len > stream_sizes.cbMaximumMessage)
+    if (in_len > (int)stream_sizes.cbMaximumMessage)
     {
         throw std::runtime_error("Message to encrypt is too long");
     }
     
-    unsigned long min_out_len = stream_sizes.cbHeader + in_len + stream_sizes.cbTrailer;
+    int min_out_len = stream_sizes.cbHeader + in_len + stream_sizes.cbTrailer;
     if (min_out_len > out_len)
     {
         throw std::runtime_error("Output buffer is too small");
@@ -455,7 +455,7 @@ int SchannelHelper::encrypt_message(SecHandle security_context, SecPkgContext_St
 int SchannelHelper::decrypt_message(SecHandle security_context, SecPkgContext_StreamSizes stream_sizes, const char* in_buf, int in_len, char* out_buf, int out_len)
 {
     int msg_size = in_len - stream_sizes.cbHeader - stream_sizes.cbTrailer;
-    if (msg_size > stream_sizes.cbMaximumMessage)
+    if (msg_size > (int)stream_sizes.cbMaximumMessage)
     {
         throw std::runtime_error("Message to decrypt is too long");
     }
@@ -507,7 +507,7 @@ int SchannelHelper::decrypt_message(SecHandle security_context, SecPkgContext_St
         throw std::runtime_error(str_stream.str());
     }
 
-    if (secure_buffers[1].cbBuffer > out_len)
+    if ((int)secure_buffers[1].cbBuffer > out_len)
     {
         throw std::runtime_error("Inconsistent decrypted message size");
     }

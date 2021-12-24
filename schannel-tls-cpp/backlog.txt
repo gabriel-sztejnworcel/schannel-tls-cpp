@@ -4,3 +4,4 @@
 - tests library
 - exceptions + messages
 - int/size_t/long
+- close in d'tors
