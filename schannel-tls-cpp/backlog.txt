@@ -1,7 +1,11 @@
-- design
-- review (buffers, schannel usage)
-- certificates (store, file, client)
-- tests library
+- design V
+- review tcp (+buffers)
+- review schannel (+buffers)
+- config: certificates (store, file, client), protocol version, ciphers
+- tests library V
 - exceptions + messages
 - int/size_t/long
-- close in d'tors
+- close in d'tors / pass references
+- add tests
+- add sample client/server
+- readme

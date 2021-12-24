@@ -1,10 +1,9 @@
 
 #pragma comment(lib, "ws2_32")
 
-#include "tcp.h"
+#include <WS2tcpip.h>
 
-#include <Windows.h>
-#include <winsock.h>
+#include "tcp.h"
 
 #define BACKLOG 10
 
@@ -14,7 +13,7 @@ void winsock_init()
     int rc = WSAStartup(MAKEWORD(1, 1), &wsa_data);
     if (rc != 0)
     {
-        throw std::runtime_error("WSAStartup: " + std::to_string(GetLastError()));
+        throw std::runtime_error("WSAStartup: " + std::to_string(WSAGetLastError()));
     }
 }
 
@@ -28,7 +27,7 @@ int TCPSocket::send(const char* buf, int len)
     int rc = ::send(win_sock_, buf, len, 0);
     if (rc == SOCKET_ERROR)
     {
-        throw std::runtime_error("send: " + std::to_string(GetLastError()));
+        throw std::runtime_error("send: " + std::to_string(WSAGetLastError()));
     }
     return rc;
 }
@@ -38,7 +37,7 @@ int TCPSocket::recv(char* buf, int len)
     int rc = ::recv(win_sock_, buf, len, 0);
     if (rc == SOCKET_ERROR)
     {
-        throw std::runtime_error("recv: " + std::to_string(GetLastError()));
+        throw std::runtime_error("recv: " + std::to_string(WSAGetLastError()));
     }
     return rc;
 }
@@ -55,38 +54,49 @@ SOCKET TCPSocket::win_sock()
 
 TCPSocket TCPClient::connect(const std::string& hostname, short port)
 {
-    ULONG address = inet_addr(hostname.c_str());
-    if (address == INADDR_NONE)
-    {
-        hostent* host = gethostbyname(hostname.c_str());
-        if (host == nullptr)
-        {
-            throw std::runtime_error("Could not resolve host name");
-        }
+    addrinfo hints = { 0 };
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
 
-        memcpy((char*)&address, host->h_addr_list[0], host->h_length);
-    }
-
-    SOCKET win_sock = socket(
-        PF_INET,
-        SOCK_STREAM,
-        0
-    );
-
-    if (win_sock == INVALID_SOCKET)
-    {
-        throw std::runtime_error("socket: " + std::to_string(GetLastError()));
-    }
-
-    SOCKADDR_IN sin = { 0 };
-    sin.sin_family = AF_INET;
-    sin.sin_addr.s_addr = address;
-    sin.sin_port = htons(port);
-
-    int rc = ::connect(win_sock, (sockaddr*)&sin, sizeof(sin));
+    auto port_str = std::to_string(port);
+    addrinfo* server_info = nullptr;
+    int rc = getaddrinfo(hostname.c_str(), port_str.c_str(), &hints, &server_info);
     if (rc != 0)
     {
-        throw std::runtime_error("connect: " + std::to_string(rc));
+        throw std::runtime_error("getaddrinfo: " + std::to_string(WSAGetLastError()));
+    }
+
+    bool connected = false;
+    SOCKET win_sock = INVALID_SOCKET;
+    for (
+        addrinfo* server_info_current = server_info;
+        server_info_current != nullptr;
+        server_info_current = server_info_current->ai_next)
+    {
+        win_sock = socket(
+            PF_INET,
+            SOCK_STREAM,
+            0
+        );
+
+        if (win_sock == INVALID_SOCKET)
+        {
+            throw std::runtime_error("socket: " + std::to_string(WSAGetLastError()));
+        }
+
+        int rc = ::connect(win_sock, server_info_current->ai_addr, server_info_current->ai_addrlen);
+        if (rc != 0)
+        {
+            continue;
+        }
+        
+        connected = true;
+        break;
+    }
+
+    if (!connected)
+    {
+        throw std::runtime_error("Failed to connect");
     }
 
     return TCPSocket(win_sock);
