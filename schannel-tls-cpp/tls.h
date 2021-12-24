@@ -18,7 +18,7 @@ class TLSSocket
 {
 public:
     TLSSocket(TCPSocket tcp_socket, SecHandle security_context);
-
+    
     int send(const char* buf, int len);
     int recv(char* buf, int len);
     void close();
@@ -39,6 +39,7 @@ public:
 
     void listen(short port);
     TLSSocket accept();
+    void close();
 
 private:
     TLSConfig tls_config_;

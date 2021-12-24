@@ -140,3 +140,11 @@ TCPSocket TCPServer::accept()
 
     return TCPSocket(connection_sock);
 }
+
+void TCPServer::close()
+{
+    if (listen_sock_ != INVALID_SOCKET)
+    {
+        closesocket(listen_sock_);
+    }
+}
