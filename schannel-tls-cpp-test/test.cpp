@@ -7,6 +7,8 @@
 #include <thread>
 #include <mutex>
 
+#include <schannel.h>
+
 #define SERVER_HOSTNAME "localhost"
 #define TCP_SERVER_PORT 8080
 #define TLS_SERVER_PORT 8443
@@ -82,6 +84,11 @@ TEST(tls_tests, test_simple_tls_client_server)
         try
         {
             TLSConfig tls_config;
+            tls_config.enabled_protocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_3_SERVER;
+            tls_config.cert_store_location = CERT_SYSTEM_STORE_CURRENT_USER;
+            tls_config.cert_store_name = "My";
+            tls_config.cert_subject_match = "gabriel-sztejnworcel.com";
+
             TLSServer tls_server(tls_config);
             tls_server.listen(SERVER_HOSTNAME, TLS_SERVER_PORT);
 
@@ -105,6 +112,8 @@ TEST(tls_tests, test_simple_tls_client_server)
         try
         {
             TLSConfig tls_config;
+            tls_config.enabled_protocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_3_CLIENT;
+
             TLSClient tls_client(tls_config);
             auto tls_socket = tls_client.connect(SERVER_HOSTNAME, TLS_SERVER_PORT);
 

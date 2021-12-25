@@ -12,10 +12,10 @@
 class SchannelHelper
 {
 public:
-    static const CERT_CONTEXT* get_certificate();
+    static const CERT_CONTEXT* get_certificate(DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match);
     static void free_cert_context(const CERT_CONTEXT* cert_context);
-    static CredHandle get_schannel_server_handle(const CERT_CONTEXT* cert_context);
-    static CredHandle get_schannel_client_handle();
+    static CredHandle get_schannel_server_handle(const CERT_CONTEXT* cert_context, DWORD enabled_protocols);
+    static CredHandle get_schannel_client_handle(DWORD enabled_protocols);
     static void free_cred_handle(CredHandle* cred_handle);
 
     static SecHandle establish_server_security_context(CredHandle server_cred_handle, TCPSocket tcp_socket);

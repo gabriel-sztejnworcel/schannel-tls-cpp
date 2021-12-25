@@ -1,7 +1,7 @@
 
 #include "tls.h"
 #include "tcp.h"
-#include "schannel.h"
+#include "schannel-helper.h"
 
 TLSSocket::TLSSocket(TCPSocket tcp_socket, SecHandle security_context) :
     tcp_socket_(tcp_socket), security_context_(security_context)
@@ -46,7 +46,7 @@ TCPSocket TLSSocket::tcp_socket()
     return tcp_socket_;
 }
 
-TLSServer::TLSServer(TLSConfig tls_config) :
+TLSServer::TLSServer(const TLSConfig& tls_config) :
     tls_config_(tls_config), cert_context_(nullptr), server_cred_handle_({ 0 })
 {
 
@@ -65,8 +65,8 @@ void TLSServer::listen(const std::string& hostname, short port)
 {
     tcp_server_.listen(hostname, port);
     
-    cert_context_ = SchannelHelper::get_certificate();
-    server_cred_handle_ = SchannelHelper::get_schannel_server_handle(cert_context_);
+    cert_context_ = SchannelHelper::get_certificate(tls_config_.cert_store_location, tls_config_.cert_store_name, tls_config_.cert_subject_match);
+    server_cred_handle_ = SchannelHelper::get_schannel_server_handle(cert_context_, tls_config_.enabled_protocols);
 }
 
 TLSSocket TLSServer::accept()
@@ -84,7 +84,7 @@ void TLSServer::close()
 TLSClient::TLSClient(TLSConfig tls_config) :
     tls_config_(tls_config)
 {
-    client_cred_handle_ = SchannelHelper::get_schannel_client_handle();
+    client_cred_handle_ = SchannelHelper::get_schannel_client_handle(tls_config_.enabled_protocols);
 }
 
 TLSClient::~TLSClient()

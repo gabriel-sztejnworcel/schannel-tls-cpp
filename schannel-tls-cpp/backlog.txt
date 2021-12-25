@@ -1,8 +1,7 @@
-- review schannel (+buffers) V
-- config: certificates (store, file, client), protocol version, ciphers
 - exceptions + messages
 - add tests
 - alert buffer in initialize/accept
+- cert by file, better cert store search, limit ciphers in config
 
 - add sample client/server
 - readme
@@ -16,3 +15,5 @@
 - review tls V
 - tests library V
 - int/size_t/long V
+- review schannel (+buffers) V
+- config: certificates (store, file, client), protocol version, ciphers V

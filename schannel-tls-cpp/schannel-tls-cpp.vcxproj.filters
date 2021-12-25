@@ -21,7 +21,7 @@
     <ClInclude Include="tls.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="schannel.h">
+    <ClInclude Include="schannel-helper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -32,7 +32,7 @@
     <ClCompile Include="tls.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="schannel.cpp">
+    <ClCompile Include="schannel-helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

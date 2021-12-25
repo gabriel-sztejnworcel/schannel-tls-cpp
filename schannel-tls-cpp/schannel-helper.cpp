@@ -3,7 +3,7 @@
 #pragma comment(lib, "Crypt32")
 #pragma comment(lib, "ws2_32")
 
-#include "schannel.h"
+#include "schannel-helper.h"
 
 #include <schnlsp.h>
 
@@ -12,19 +12,21 @@
 
 #define BUFFER_SIZE 16384
 
-const CERT_CONTEXT* SchannelHelper::get_certificate()
+const CERT_CONTEXT* SchannelHelper::get_certificate(DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
 {
     HCERTSTORE personal_cert_store = nullptr;
     const CERT_CONTEXT* cert_context = nullptr;
 
     try
     {
+        std::wstring cert_store_name_wstr(cert_store_name.begin(), cert_store_name.end());
+        
         personal_cert_store = CertOpenStore(
             CERT_STORE_PROV_SYSTEM,
             X509_ASN_ENCODING,
             0,
-            CERT_SYSTEM_STORE_CURRENT_USER,
-            L"My"
+            cert_store_location,
+            cert_store_name_wstr.c_str()
         );
 
         if (personal_cert_store == nullptr)
@@ -34,12 +36,14 @@ const CERT_CONTEXT* SchannelHelper::get_certificate()
 
         // TODO: unique_ptr with custom deleter
 
+        std::wstring cert_subject_wstr(cert_subject_match.begin(), cert_subject_match.end());
+
         cert_context = CertFindCertificateInStore(
             personal_cert_store,
             X509_ASN_ENCODING,
             0,
-            CERT_FIND_ANY,
-            nullptr,
+            CERT_FIND_SUBJECT_STR,
+            cert_subject_wstr.c_str(),
             nullptr
         );
 
@@ -68,11 +72,11 @@ void SchannelHelper::free_cert_context(const CERT_CONTEXT* cert_context)
     CertFreeCertificateContext(cert_context);
 }
 
-CredHandle SchannelHelper::get_schannel_server_handle(const CERT_CONTEXT* cert_context)
+CredHandle SchannelHelper::get_schannel_server_handle(const CERT_CONTEXT* cert_context, DWORD enabled_protocols)
 {
     SCHANNEL_CRED cred_data = { 0 };
     cred_data.dwVersion = SCHANNEL_CRED_VERSION;
-    cred_data.grbitEnabledProtocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_3_SERVER;
+    cred_data.grbitEnabledProtocols = enabled_protocols;
     cred_data.paCred = &cert_context;
     cred_data.cCreds = 1;
 
@@ -102,11 +106,11 @@ CredHandle SchannelHelper::get_schannel_server_handle(const CERT_CONTEXT* cert_c
     return cred_handle;
 }
 
-CredHandle SchannelHelper::get_schannel_client_handle()
+CredHandle SchannelHelper::get_schannel_client_handle(DWORD enabled_protocols)
 {
     SCHANNEL_CRED cred_data = { 0 };
     cred_data.dwVersion = SCHANNEL_CRED_VERSION;
-    cred_data.grbitEnabledProtocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_3_CLIENT;
+    cred_data.grbitEnabledProtocols = enabled_protocols;
 
     CredHandle cred_handle;
     TimeStamp life_time;

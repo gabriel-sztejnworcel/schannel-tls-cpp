@@ -115,12 +115,12 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="schannel.h" />
+    <ClInclude Include="schannel-helper.h" />
     <ClInclude Include="tcp.h" />
     <ClInclude Include="tls.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="schannel.cpp" />
+    <ClCompile Include="schannel-helper.cpp" />
     <ClCompile Include="tcp.cpp" />
     <ClCompile Include="tls.cpp" />
   </ItemGroup>
