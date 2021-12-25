@@ -7,6 +7,7 @@
 #include <functional>
 
 #include "tcp.h"
+#include "win32-exception.h"
 
 #define BACKLOG 10
 
@@ -16,7 +17,7 @@ void winsock_init()
     int rc = WSAStartup(MAKEWORD(1, 1), &wsa_data);
     if (rc != 0)
     {
-        throw std::runtime_error("WSAStartup: " + std::to_string(WSAGetLastError()));
+        throw Win32Exception("winsock_init", "WSAStartup", WSAGetLastError());
     }
 }
 
@@ -30,7 +31,7 @@ int TCPSocket::send(const char* buf, int len)
     int rc = ::send(win_sock_, buf, len, 0);
     if (rc == SOCKET_ERROR)
     {
-        throw std::runtime_error("send: " + std::to_string(WSAGetLastError()));
+        throw Win32Exception("send", "send", WSAGetLastError());
     }
     return rc;
 }
@@ -40,7 +41,7 @@ int TCPSocket::recv(char* buf, int len)
     int rc = ::recv(win_sock_, buf, len, 0);
     if (rc == SOCKET_ERROR)
     {
-        throw std::runtime_error("recv: " + std::to_string(WSAGetLastError()));
+        throw Win32Exception("recv", "recv", WSAGetLastError());
     }
     return rc;
 }
@@ -66,7 +67,7 @@ TCPSocket TCPClient::connect(const std::string& hostname, short port)
     int rc = getaddrinfo(hostname.c_str(), port_str.c_str(), &hints, &server_info);
     if (rc != 0)
     {
-        throw std::runtime_error("getaddrinfo: " + std::to_string(WSAGetLastError()));
+        throw Win32Exception("connect", "getaddrinfo", WSAGetLastError());
     }
 
     // Bind to unique ptr to it will be released at the end
@@ -87,7 +88,7 @@ TCPSocket TCPClient::connect(const std::string& hostname, short port)
 
         if (win_sock == INVALID_SOCKET)
         {
-            throw std::runtime_error("socket: " + std::to_string(WSAGetLastError()));
+            throw Win32Exception("connect", "socket", WSAGetLastError());
         }
 
         int rc = ::connect(win_sock, server_info_current->ai_addr, (int)server_info_current->ai_addrlen);
@@ -104,7 +105,7 @@ TCPSocket TCPClient::connect(const std::string& hostname, short port)
 
     if (!connected)
     {
-        throw std::runtime_error("Failed to connect");
+        throw std::runtime_error("connect: Failed to connect");
     }
 
     return TCPSocket(win_sock);
@@ -121,7 +122,7 @@ void TCPServer::listen(const std::string& hostname, short port)
     int rc = getaddrinfo(hostname.c_str(), port_str.c_str(), &hints, &server_info);
     if (rc != 0)
     {
-        throw std::runtime_error("getaddrinfo: " + std::to_string(WSAGetLastError()));
+        throw Win32Exception("listen", "getaddrinfo", WSAGetLastError());
     }
 
     // Bind to unique ptr to it will be released at the end
@@ -142,7 +143,7 @@ void TCPServer::listen(const std::string& hostname, short port)
 
         if (listen_sock == INVALID_SOCKET)
         {
-            throw std::runtime_error("socket: " + std::to_string(WSAGetLastError()));
+            throw Win32Exception("listen", "socket", WSAGetLastError());
         }
 
         int rc = bind(listen_sock, server_info_current->ai_addr, (int)server_info_current->ai_addrlen);
@@ -159,13 +160,13 @@ void TCPServer::listen(const std::string& hostname, short port)
 
     if (!bound)
     {
-        throw std::runtime_error("Failed to bind socket");
+        throw std::runtime_error("listen: Failed to bind socket");
     }
 
     rc = ::listen(listen_sock, BACKLOG);
     if (rc == SOCKET_ERROR)
     {
-        throw std::runtime_error("listen: " + std::to_string(WSAGetLastError()));
+        throw Win32Exception("listen", "listen", WSAGetLastError());
     }
 
     listen_sock_ = listen_sock;
@@ -175,13 +176,13 @@ TCPSocket TCPServer::accept()
 {
     if (listen_sock_ == INVALID_SOCKET)
     {
-        throw std::runtime_error("accept was called but the server is not listening");
+        throw std::runtime_error("accept: accept was called but the server is not listening");
     }
     
     SOCKET connection_sock = ::accept(listen_sock_, nullptr, nullptr);
     if (connection_sock == INVALID_SOCKET)
     {
-        throw std::runtime_error("accept: " + std::to_string(WSAGetLastError()));
+        throw Win32Exception("accept", "accept", WSAGetLastError());
     }
 
     return TCPSocket(connection_sock);

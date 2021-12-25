@@ -118,11 +118,13 @@
     <ClInclude Include="schannel-helper.h" />
     <ClInclude Include="tcp.h" />
     <ClInclude Include="tls.h" />
+    <ClInclude Include="win32-exception.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="schannel-helper.cpp" />
     <ClCompile Include="tcp.cpp" />
     <ClCompile Include="tls.cpp" />
+    <ClCompile Include="win32-exception.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="backlog.txt" />

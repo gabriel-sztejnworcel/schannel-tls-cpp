@@ -1,0 +1,14 @@
+#pragma once
+
+#include <stdexcept>
+#include <string>
+
+class Win32Exception : std::exception
+{
+public:
+    Win32Exception(const std::string& calling_function_name, const std::string& function_name, int error_code);
+    char const* what() const override;
+
+private:
+    std::string msg_;
+};

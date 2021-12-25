@@ -16,7 +16,7 @@ public:
     int recv(char* buf, int len);
     void close();
 
-    // Get underlying socket object for os operations such as async io
+    // Get underlying socket object for lower level operations
     SOCKET win_sock();
 
 private:
