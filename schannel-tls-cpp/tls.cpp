@@ -11,34 +11,75 @@ TLSSocket::TLSSocket(TCPSocket tcp_socket, SecHandle security_context) :
 
 int TLSSocket::send(const char* buf, int len)
 {
-    int out_len = len + stream_sizes_.cbHeader + stream_sizes_.cbTrailer;
-    auto out_buf = std::make_unique<char[]>(out_len);
-
     int out_len_result = SchannelHelper::encrypt_message(
-        security_context_, stream_sizes_, buf, len, out_buf.get(), out_len
+        security_context_, stream_sizes_, buf, len, encrypted_buffer_, TLS_SOCKET_BUFFER_SIZE
     );
 
-    int bytes_sent = tcp_socket_.send(out_buf.get(), out_len_result);
+    int bytes_sent = tcp_socket_.send(encrypted_buffer_, out_len_result);
     return bytes_sent - stream_sizes_.cbHeader - stream_sizes_.cbTrailer;
 }
 
-int TLSSocket::recv(char* buf, int len)
+int TLSSocket::recv()
 {
-    int recv_len = len + stream_sizes_.cbHeader + stream_sizes_.cbTrailer;
-    auto recv_buf = std::make_unique<char[]>(recv_len);
-    int bytes_received = tcp_socket_.recv(recv_buf.get(), recv_len);
+    int total_decrypted_len = 0;
+    
+    int recv_len = TLS_SOCKET_BUFFER_SIZE - buffer_to_decrypt_offset_;
+    int bytes_received = tcp_socket_.recv(buffer_to_decrypt_ + buffer_to_decrypt_offset_, recv_len);
 
-    int decrypted_len = SchannelHelper::decrypt_message(
-        security_context_, stream_sizes_, recv_buf.get(), recv_len, buf, len
-    );
+    int decrypted_buffer_offset = 0;
+    int encrypted_buffer_len = buffer_to_decrypt_offset_ + bytes_received;
+    buffer_to_decrypt_offset_ = 0;
+    while (true)
+    {
+        try
+        {
+            if (buffer_to_decrypt_offset_ >= encrypted_buffer_len)
+            {
+                break;
+            }
+            
+            int decrypted_len = SchannelHelper::decrypt_message(
+                security_context_,
+                stream_sizes_,
+                buffer_to_decrypt_ + buffer_to_decrypt_offset_,
+                bytes_received + buffer_to_decrypt_offset_ - buffer_to_decrypt_offset_,
+                decrypted_buffer_ + decrypted_buffer_offset,
+                TLS_SOCKET_BUFFER_SIZE + TLS_SOCKET_BUFFER_SIZE - decrypted_buffer_offset
+            );
 
-    return decrypted_len;
+            total_decrypted_len += decrypted_len;
+            decrypted_buffer_offset += decrypted_len;
+            buffer_to_decrypt_offset_ += stream_sizes_.cbHeader + decrypted_len + stream_sizes_.cbTrailer;
+        }
+        catch (const std::exception&)
+        {
+            break;
+        }
+    }
+
+    if (buffer_to_decrypt_offset_ < encrypted_buffer_len)
+    {
+        memcpy(
+            buffer_to_decrypt_,
+            buffer_to_decrypt_ + buffer_to_decrypt_offset_,
+            encrypted_buffer_len - buffer_to_decrypt_offset_
+        );
+    }
+
+    buffer_to_decrypt_offset_ = encrypted_buffer_len - buffer_to_decrypt_offset_;
+
+    return total_decrypted_len;
 }
 
 void TLSSocket::close()
 {
     tcp_socket_.close();
     SchannelHelper::delete_security_context(&security_context_);
+}
+
+const char* TLSSocket::decrypted_buffer()
+{
+    return decrypted_buffer_;
 }
 
 TCPSocket TLSSocket::tcp_socket()

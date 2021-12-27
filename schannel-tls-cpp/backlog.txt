@@ -1,4 +1,4 @@
-- exceptions + messages
+- verify certificate
 - add tests
 - alert buffer in initialize/accept
 - cert by file, better cert store search, limit ciphers in config
@@ -17,3 +17,4 @@
 - int/size_t/long V
 - review schannel (+buffers) V
 - config: certificates (store, file, client), protocol version, ciphers V
+- exceptions + messages V

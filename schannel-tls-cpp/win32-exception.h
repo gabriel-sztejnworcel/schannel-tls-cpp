@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <string>
 
-class Win32Exception : std::exception
+class Win32Exception : public std::exception
 {
 public:
     Win32Exception(const std::string& calling_function_name, const std::string& function_name, int error_code);
