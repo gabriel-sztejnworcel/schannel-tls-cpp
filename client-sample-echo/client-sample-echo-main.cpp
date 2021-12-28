@@ -34,7 +34,7 @@ int main()
         while (true)
         {
             // Read a string from the console
-            std::cout << "TLS Client> ";
+            std::cout << "tls-client> ";
             std::string msg;
             std::getline(std::cin, msg);
 
