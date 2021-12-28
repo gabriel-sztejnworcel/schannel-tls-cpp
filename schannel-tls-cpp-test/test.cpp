@@ -1,7 +1,7 @@
 
 #include "pch.h"
 
-#include <tcp.h>
+#include <tcp-client.h>
 #include <tls.h>
 
 #include <thread>
@@ -24,7 +24,7 @@ int count_str(const char* buf, int len, const std::string& str_to_count)
 {
     int count = 0;
 
-    int str_to_count_len = str_to_count.length();
+    int str_to_count_len = (int)str_to_count.length();
     while (len >= str_to_count_len)
     {
         std::string str(buf, str_to_count_len);
@@ -173,6 +173,10 @@ TEST(tls_tests, test_tls_send_10000_messages)
             tls_server.listen(SERVER_HOSTNAME, TLS_SERVER_PORT);
 
             auto tls_socket = tls_server.accept();
+
+            // We want to test how recv handles multiple messages, so here we wait until
+            // the client sends all (or at least some) of the messages.
+            Sleep(1000);
 
             while (true)
             {

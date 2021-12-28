@@ -116,13 +116,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="schannel-helper.h" />
-    <ClInclude Include="tcp.h" />
+    <ClInclude Include="tcp-server.h" />
+    <ClInclude Include="tcp-socket.h" />
+    <ClInclude Include="tcp-client.h" />
     <ClInclude Include="tls.h" />
     <ClInclude Include="win32-exception.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="schannel-helper.cpp" />
-    <ClCompile Include="tcp.cpp" />
+    <ClCompile Include="tcp-server.cpp" />
+    <ClCompile Include="tcp-socket.cpp" />
+    <ClCompile Include="tcp-client.cpp" />
     <ClCompile Include="tls.cpp" />
     <ClCompile Include="win32-exception.cpp" />
   </ItemGroup>

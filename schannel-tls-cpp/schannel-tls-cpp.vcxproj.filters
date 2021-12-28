@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="tcp.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="tls.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -27,11 +24,17 @@
     <ClInclude Include="win32-exception.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="tcp-socket.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tcp-server.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tcp-client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="tcp.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="tls.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -39,6 +42,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="win32-exception.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tcp-socket.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tcp-server.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tcp-client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

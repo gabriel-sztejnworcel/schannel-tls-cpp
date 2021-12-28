@@ -3,8 +3,6 @@
 #include <Windows.h>
 #include <winsock.h>
 
-#include <string>
-
 void winsock_init();
 
 class TCPSocket
@@ -21,21 +19,4 @@ public:
 
 private:
     SOCKET win_sock_;
-};
-
-class TCPClient
-{
-public:
-    TCPSocket connect(const std::string& hostname, short port);
-};
-
-class TCPServer
-{
-public:
-    void listen(const std::string& hostname, short port);
-    TCPSocket accept();
-    void close();
-
-private:
-    SOCKET listen_sock_ = INVALID_SOCKET;
 };

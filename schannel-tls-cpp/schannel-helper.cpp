@@ -11,9 +11,10 @@
 #include <sstream>
 #include <memory>
 
-#define BUFFER_SIZE 16384
+#define SCHANNEL_NEGOTIATE_BUFFER_SIZE 16384
 
-const CERT_CONTEXT* SchannelHelper::get_certificate(DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
+const CERT_CONTEXT* SchannelHelper::get_certificate(
+    DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
 {
     HCERTSTORE personal_cert_store = nullptr;
     const CERT_CONTEXT* cert_context = nullptr;
@@ -32,12 +33,16 @@ const CERT_CONTEXT* SchannelHelper::get_certificate(DWORD cert_store_location, c
 
         if (personal_cert_store == nullptr)
         {
-            throw Win32Exception("get_certificate", "CertOpenStore", GetLastError());
+            throw Win32Exception(
+                "get_certificate", "CertOpenStore", GetLastError()
+            );
         }
 
         // TODO: unique_ptr with custom deleter
 
-        std::wstring cert_subject_wstr(cert_subject_match.begin(), cert_subject_match.end());
+        std::wstring cert_subject_wstr(
+            cert_subject_match.begin(), cert_subject_match.end()
+        );
 
         cert_context = CertFindCertificateInStore(
             personal_cert_store,
@@ -50,7 +55,9 @@ const CERT_CONTEXT* SchannelHelper::get_certificate(DWORD cert_store_location, c
 
         if (cert_context == nullptr)
         {
-            throw Win32Exception("get_certificate", "CertFindCertificateInStore", GetLastError());
+            throw Win32Exception(
+                "get_certificate", "CertFindCertificateInStore", GetLastError()
+            );
         }
     }
     catch (...)
@@ -99,7 +106,9 @@ CredHandle SchannelHelper::get_schannel_server_handle(const CERT_CONTEXT* cert_c
 
     if (sec_status != SEC_E_OK)
     {
-        throw Win32Exception("get_schannel_server_handle", "AcquireCredentialsHandle", sec_status);
+        throw Win32Exception(
+            "get_schannel_server_handle", "AcquireCredentialsHandle", sec_status
+        );
     }
 
     return cred_handle;
@@ -129,7 +138,9 @@ CredHandle SchannelHelper::get_schannel_client_handle(DWORD enabled_protocols)
 
     if (sec_status != SEC_E_OK)
     {
-        throw Win32Exception("get_schannel_client_handle", "AcquireCredentialsHandle", sec_status);
+        throw Win32Exception(
+            "get_schannel_client_handle", "AcquireCredentialsHandle", sec_status
+        );
     }
 
     return cred_handle;
@@ -140,7 +151,9 @@ void SchannelHelper::free_cred_handle(CredHandle* cred_handle)
     SECURITY_STATUS sec_status = FreeCredentialsHandle(cred_handle);
     if (sec_status != SEC_E_OK)
     {
-        throw Win32Exception("free_cred_handle", "FreeCredentialsHandle", sec_status);
+        throw Win32Exception(
+            "free_cred_handle", "FreeCredentialsHandle", sec_status
+        );
     }
 }
 
@@ -151,11 +164,11 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
     try
     {
         // Input buffer
-        auto buffer_in = std::make_unique<char[]>(BUFFER_SIZE);
+        auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
         SecBuffer secure_buffer_in[2] = { 0 };
 
         secure_buffer_in[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_in[0].cbBuffer = BUFFER_SIZE;
+        secure_buffer_in[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
         secure_buffer_in[0].pvBuffer = buffer_in.get();
 
         secure_buffer_in[1].BufferType = SECBUFFER_EMPTY;
@@ -168,16 +181,12 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
         secure_buffer_desc_in.pBuffers = secure_buffer_in;
 
         // Output buffer
-        auto buffer_out = std::make_unique<char[]>(BUFFER_SIZE /* + BUFFER_SIZE */);
+        auto buffer_out = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
         SecBuffer secure_buffer_out[1] = { 0 };
 
         secure_buffer_out[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_out[0].cbBuffer = BUFFER_SIZE;
+        secure_buffer_out[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
         secure_buffer_out[0].pvBuffer = buffer_out.get();
-
-        /*secure_buffer_out[1].BufferType = SECBUFFER_ALERT;
-        secure_buffer_out[1].cbBuffer = BUFFER_SIZE;
-        secure_buffer_out[1].pvBuffer = buffer_out.get() + BUFFER_SIZE;*/
 
         SecBufferDesc secure_buffer_desc_out = { 0 };
         secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
@@ -187,7 +196,7 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
         ULONG context_attributes = 0;
         TimeStamp life_time = { 0 };
 
-        secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, BUFFER_SIZE);
+        secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
 
         SECURITY_STATUS sec_status = AcceptSecurityContext(
             &server_cred_handle,
@@ -203,7 +212,9 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
 
         if (sec_status != SEC_I_CONTINUE_NEEDED)
         {
-            throw Win32Exception("establish_server_security_context", "AcceptSecurityContext", sec_status);
+            throw Win32Exception(
+                "establish_server_security_context", "AcceptSecurityContext", sec_status
+            );
         }
 
         bool auth_completed = false;
@@ -214,7 +225,9 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
                 int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
                 if (sent != secure_buffer_out[0].cbBuffer)
                 {
-                    throw std::runtime_error("establish_server_security_context: Unexpected number of bytes sent to client");
+                    throw std::runtime_error(
+                        "establish_server_security_context: Unexpected number of bytes sent to client"
+                    );
                 }
             }
 
@@ -223,7 +236,8 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
                 break;
             }
 
-            secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, BUFFER_SIZE);
+            secure_buffer_in[0].cbBuffer =
+                tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
 
             SECURITY_STATUS sec_status = AcceptSecurityContext(
                 &server_cred_handle,
@@ -251,7 +265,9 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
 
                 if (complete_sec_status != SEC_E_OK)
                 {
-                    throw Win32Exception("establish_server_security_context", "CompleteAuthToken", complete_sec_status);
+                    throw Win32Exception(
+                        "establish_server_security_context", "CompleteAuthToken", complete_sec_status
+                    );
                 }
 
                 if (sec_status == SEC_I_COMPLETE_NEEDED)
@@ -270,7 +286,9 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
                 break;
 
             default:
-                throw Win32Exception("establish_server_security_context", "AcceptSecurityContext", sec_status);
+                throw Win32Exception(
+                    "establish_server_security_context", "AcceptSecurityContext", sec_status
+                );
             }
         }
     }
@@ -290,11 +308,11 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
     try
     {
         // Input buffer
-        auto buffer_in = std::make_unique<char[]>(BUFFER_SIZE);
+        auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
         SecBuffer secure_buffer_in[2] = { 0 };
 
         secure_buffer_in[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_in[0].cbBuffer = BUFFER_SIZE;
+        secure_buffer_in[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
         secure_buffer_in[0].pvBuffer = buffer_in.get();
 
         secure_buffer_in[1].BufferType = SECBUFFER_EMPTY;
@@ -307,16 +325,12 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
         secure_buffer_desc_in.pBuffers = secure_buffer_in;
 
         // Output buffer
-        auto buffer_out = std::make_unique<char[]>(BUFFER_SIZE /* + BUFFER_SIZE */);
+        auto buffer_out = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
         SecBuffer secure_buffer_out[1] = { 0 };
 
         secure_buffer_out[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_out[0].cbBuffer = BUFFER_SIZE;
+        secure_buffer_out[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
         secure_buffer_out[0].pvBuffer = buffer_out.get();
-
-        /*secure_buffer_out[1].BufferType = SECBUFFER_ALERT;
-        secure_buffer_out[1].cbBuffer = BUFFER_SIZE;
-        secure_buffer_out[1].pvBuffer = buffer_out.get() + BUFFER_SIZE;*/
 
         SecBufferDesc secure_buffer_desc_out = { 0 };
         secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
@@ -345,7 +359,9 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
 
         if (sec_status != SEC_I_CONTINUE_NEEDED)
         {
-            throw Win32Exception("establish_client_security_context", "InitializeSecurityContext", sec_status);
+            throw Win32Exception(
+                "establish_client_security_context", "InitializeSecurityContext", sec_status
+            );
         }
 
         bool auth_completed = false;
@@ -354,10 +370,12 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
             int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
             if (sent != secure_buffer_out[0].cbBuffer)
             {
-                throw std::runtime_error("establish_client_security_context: Unexpected number of bytes sent to server");
+                throw std::runtime_error(
+                    "establish_client_security_context: Unexpected number of bytes sent to server"
+                );
             }
 
-            secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, BUFFER_SIZE);
+            secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
 
             SECURITY_STATUS sec_status = InitializeSecurityContext(
                 &client_cred_handle,
@@ -388,7 +406,9 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
 
                 if (complete_sec_status != SEC_E_OK)
                 {
-                    throw Win32Exception("establish_client_security_context", "CompleteAuthToken", complete_sec_status);
+                    throw Win32Exception(
+                        "establish_client_security_context", "CompleteAuthToken", complete_sec_status
+                    );
                 }
 
                 if (sec_status == SEC_I_COMPLETE_NEEDED)
@@ -404,7 +424,9 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
 
             case SEC_I_INCOMPLETE_CREDENTIALS:
             case SEC_E_INCOMPLETE_MESSAGE:
-                throw Win32Exception("establish_client_security_context", "InitializeSecurityContext", sec_status);
+                throw Win32Exception(
+                    "establish_client_security_context", "InitializeSecurityContext", sec_status
+                );
 
             case SEC_E_OK:
                 auth_completed = true;
@@ -426,7 +448,9 @@ void SchannelHelper::delete_security_context(SecHandle* security_context)
     SECURITY_STATUS sec_status = DeleteSecurityContext(security_context);
     if (sec_status != SEC_E_OK)
     {
-        throw Win32Exception("delete_security_context", "DeleteSecurityContext", sec_status);
+        throw Win32Exception(
+            "delete_security_context", "DeleteSecurityContext", sec_status
+        );
     }
 }
 
@@ -442,7 +466,9 @@ SecPkgContext_StreamSizes SchannelHelper::get_stream_sizes(SecHandle security_co
 
     if (sec_status != SEC_E_OK)
     {
-        throw Win32Exception("get_stream_sizes", "QueryContextAttributes", sec_status);
+        throw Win32Exception(
+            "get_stream_sizes", "QueryContextAttributes", sec_status
+        );
     }
 
     return stream_sizes;
@@ -495,7 +521,9 @@ int SchannelHelper::encrypt_message(SecHandle security_context, SecPkgContext_St
 
     if (sec_status != SEC_E_OK)
     {
-        throw Win32Exception("encrypt_message", "EncryptMessage", sec_status);
+        throw Win32Exception(
+            "encrypt_message", "EncryptMessage", sec_status
+        );
     }
 
     return min_out_len;
@@ -556,7 +584,9 @@ int SchannelHelper::decrypt_message(SecHandle security_context, SecPkgContext_St
 
     if (sec_status != SEC_E_OK)
     {
-        throw Win32Exception("decrypt_message", "DecryptMessage", sec_status);
+        throw Win32Exception(
+            "decrypt_message", "DecryptMessage", sec_status
+        );
     }
 
     if ((int)secure_buffers[1].cbBuffer > out_len)
