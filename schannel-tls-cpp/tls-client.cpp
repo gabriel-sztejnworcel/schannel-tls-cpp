@@ -2,6 +2,8 @@
 #include "tls-client.h"
 #include "schannel-helper.h"
 
+using namespace schannel;
+
 TLSClient::TLSClient(TLSConfig tls_config) :
     tls_config_(tls_config)
 {

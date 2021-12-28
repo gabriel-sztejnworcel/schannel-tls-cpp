@@ -9,6 +9,8 @@
 
 #define BACKLOG 10
 
+using namespace schannel;
+
 void TCPServer::listen(const std::string& hostname, short port)
 {
     addrinfo hints = { 0 };

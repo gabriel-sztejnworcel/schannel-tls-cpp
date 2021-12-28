@@ -11,6 +11,8 @@
 
 #define SCHANNEL_NEGOTIATE_BUFFER_SIZE 16384
 
+using namespace schannel;
+
 const CERT_CONTEXT* SchannelHelper::get_certificate(
     DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
 {

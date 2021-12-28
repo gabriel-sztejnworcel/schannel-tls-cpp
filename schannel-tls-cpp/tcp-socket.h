@@ -5,6 +5,8 @@
 
 void winsock_init();
 
+namespace schannel {
+
 class TCPSocket
 {
 public:
@@ -20,3 +22,5 @@ public:
 private:
     SOCKET win_sock_;
 };
+
+}; // namespace schannel

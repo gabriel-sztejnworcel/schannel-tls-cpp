@@ -6,6 +6,8 @@
 #include "tls-config.h"
 #include "tcp-server.h"
 
+namespace schannel {
+
 class TLSServer
 {
 public:
@@ -22,3 +24,5 @@ private:
     const CERT_CONTEXT* cert_context_;
     CredHandle server_cred_handle_;
 };
+
+}; // namespace schannel

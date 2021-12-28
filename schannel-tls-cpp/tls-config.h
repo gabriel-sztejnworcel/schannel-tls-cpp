@@ -4,6 +4,8 @@
 
 #include <string>
 
+namespace schannel {
+
 struct TLSConfig
 {
     DWORD enabled_protocols = 0;
@@ -11,3 +13,5 @@ struct TLSConfig
     std::string cert_store_name;
     std::string cert_subject_match;
 };
+
+}; // namespace schannel

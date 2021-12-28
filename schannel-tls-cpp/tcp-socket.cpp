@@ -4,6 +4,8 @@
 #include "tcp-socket.h"
 #include "win32-exception.h"
 
+using namespace schannel;
+
 void winsock_init()
 {
     WSADATA wsa_data;

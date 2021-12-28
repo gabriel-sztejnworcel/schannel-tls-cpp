@@ -3,6 +3,8 @@
 
 #include <sstream>
 
+using namespace schannel;
+
 Win32Exception::Win32Exception(const std::string& calling_function_name, const std::string& function_name, int error_code)
 {
     std::stringstream str_stream;

@@ -2,6 +2,8 @@
 #include "tls-socket.h"
 #include "schannel-helper.h"
 
+using namespace schannel;
+
 TLSSocket::TLSSocket(TCPSocket tcp_socket, SecHandle security_context) :
     tcp_socket_(tcp_socket), security_context_(security_context)
 {

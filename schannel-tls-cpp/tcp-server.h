@@ -4,6 +4,8 @@
 
 #include <string>
 
+namespace schannel {
+
 class TCPServer
 {
 public:
@@ -14,3 +16,5 @@ public:
 private:
     SOCKET listen_sock_ = INVALID_SOCKET;
 };
+
+}; // namespace schannel

@@ -7,6 +7,8 @@
 #include <memory>
 #include <functional>
 
+using namespace schannel;
+
 TCPSocket TCPClient::connect(const std::string& hostname, short port)
 {
     addrinfo hints = { 0 };

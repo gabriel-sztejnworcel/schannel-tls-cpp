@@ -11,6 +11,8 @@
 
 #include <string>
 
+namespace schannel {
+
 class TLSClient
 {
 public:
@@ -24,3 +26,5 @@ private:
     TCPClient tcp_client;
     CredHandle client_cred_handle_;
 };
+
+}; // namespace schannel

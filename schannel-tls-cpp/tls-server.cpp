@@ -2,6 +2,8 @@
 #include "tls-server.h"
 #include "schannel-helper.h"
 
+using namespace schannel;
+
 TLSServer::TLSServer(const TLSConfig& tls_config) :
     tls_config_(tls_config), cert_context_(nullptr), server_cred_handle_({ 0 })
 {

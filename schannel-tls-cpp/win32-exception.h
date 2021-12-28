@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <string>
 
+namespace schannel {
+
 class Win32Exception : public std::exception
 {
 public:
@@ -12,3 +14,5 @@ public:
 private:
     std::string msg_;
 };
+
+}; // namespace schannel

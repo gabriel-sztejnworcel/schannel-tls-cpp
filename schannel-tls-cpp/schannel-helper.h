@@ -10,6 +10,8 @@
 
 #include <memory>
 
+namespace schannel {
+
 class SchannelHelper
 {
 public:
@@ -37,3 +39,5 @@ public:
         char* out_buf, int out_len
     );
 };
+
+}; // namespace schannel

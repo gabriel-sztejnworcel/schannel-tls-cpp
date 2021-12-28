@@ -9,6 +9,8 @@
 
 #define TLS_SOCKET_BUFFER_SIZE 16384
 
+namespace schannel {
+
 class TLSSocket
 {
 public:
@@ -33,3 +35,5 @@ private:
     char decrypted_buffer_[TLS_SOCKET_BUFFER_SIZE + TLS_SOCKET_BUFFER_SIZE] = { 0 };
     int buffer_to_decrypt_offset_ = 0;
 };
+
+}; // namespace schannel
