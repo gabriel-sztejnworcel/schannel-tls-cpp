@@ -23,51 +23,51 @@ int TLSSocket::recv()
 {
     int total_decrypted_len = 0;
     
-    int recv_len = TLS_SOCKET_BUFFER_SIZE - buffer_to_decrypt_offset_;
-    int bytes_received = tcp_socket_.recv(buffer_to_decrypt_ + buffer_to_decrypt_offset_, recv_len);
+    // We might have leftovers, an incomplete message from a previous call.
+    // Calculate the available buffer length for tcp recv.
+    int recv_max_len = TLS_SOCKET_BUFFER_SIZE - buffer_to_decrypt_offset_;
+    int bytes_received = tcp_socket_.recv(buffer_to_decrypt_ + buffer_to_decrypt_offset_, recv_max_len);
 
     int decrypted_buffer_offset = 0;
     int encrypted_buffer_len = buffer_to_decrypt_offset_ + bytes_received;
     buffer_to_decrypt_offset_ = 0;
     while (true)
     {
-        try
+        if (buffer_to_decrypt_offset_ >= encrypted_buffer_len)
         {
-            if (buffer_to_decrypt_offset_ >= encrypted_buffer_len)
-            {
-                break;
-            }
-            
-            int decrypted_len = SchannelHelper::decrypt_message(
-                security_context_,
-                stream_sizes_,
-                buffer_to_decrypt_ + buffer_to_decrypt_offset_,
-                bytes_received + buffer_to_decrypt_offset_ - buffer_to_decrypt_offset_,
-                decrypted_buffer_ + decrypted_buffer_offset,
-                TLS_SOCKET_BUFFER_SIZE + TLS_SOCKET_BUFFER_SIZE - decrypted_buffer_offset
-            );
-
-            total_decrypted_len += decrypted_len;
-            decrypted_buffer_offset += decrypted_len;
-            buffer_to_decrypt_offset_ += stream_sizes_.cbHeader + decrypted_len + stream_sizes_.cbTrailer;
-        }
-        catch (const std::exception&)
-        {
+            // Reached the encrypted buffer length, we decrypted everything so we can stop.
             break;
         }
-    }
-
-    if (buffer_to_decrypt_offset_ < encrypted_buffer_len)
-    {
-        memcpy(
-            buffer_to_decrypt_,
+            
+        int decrypted_len = SchannelHelper::decrypt_message(
+            security_context_,
+            stream_sizes_,
             buffer_to_decrypt_ + buffer_to_decrypt_offset_,
-            encrypted_buffer_len - buffer_to_decrypt_offset_
+            encrypted_buffer_len - buffer_to_decrypt_offset_,
+            decrypted_buffer_ + decrypted_buffer_offset,
+            TLS_SOCKET_BUFFER_SIZE + TLS_SOCKET_BUFFER_SIZE - decrypted_buffer_offset
         );
+
+        if (decrypted_len == -1)
+        {
+            // Incomplete message, we shuold keep it so it will be decrypted on the next call to recv().
+            // Shift the remaining buffer to the beginning and break the loop.
+
+            memcpy(
+                buffer_to_decrypt_,
+                buffer_to_decrypt_ + buffer_to_decrypt_offset_,
+                encrypted_buffer_len - buffer_to_decrypt_offset_
+            );
+
+            break;
+        }
+
+        total_decrypted_len += decrypted_len;
+        decrypted_buffer_offset += decrypted_len;
+        buffer_to_decrypt_offset_ += stream_sizes_.cbHeader + decrypted_len + stream_sizes_.cbTrailer;
     }
 
     buffer_to_decrypt_offset_ = encrypted_buffer_len - buffer_to_decrypt_offset_;
-
     return total_decrypted_len;
 }
 

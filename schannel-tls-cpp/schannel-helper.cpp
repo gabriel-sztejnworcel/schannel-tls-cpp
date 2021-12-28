@@ -549,6 +549,11 @@ int SchannelHelper::decrypt_message(SecHandle security_context, SecPkgContext_St
         nullptr
     );
 
+    if (sec_status == SEC_E_INCOMPLETE_MESSAGE)
+    {
+        return -1;
+    }
+
     if (sec_status != SEC_E_OK)
     {
         throw Win32Exception("decrypt_message", "DecryptMessage", sec_status);
