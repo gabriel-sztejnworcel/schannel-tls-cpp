@@ -6,7 +6,7 @@
 
 using namespace schannel;
 
-void winsock_init()
+void schannel::winsock_init()
 {
     WSADATA wsa_data;
     int rc = WSAStartup(MAKEWORD(1, 1), &wsa_data);

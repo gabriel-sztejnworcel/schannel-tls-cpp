@@ -3,9 +3,9 @@
 #include <Windows.h>
 #include <winsock.h>
 
-void winsock_init();
-
 namespace schannel {
+
+void winsock_init();
 
 class TCPSocket
 {

@@ -1,5 +1,5 @@
 - verify certificate ** V
-- add tests
+- add more tests
 - alert buffer in initialize/accept
 - cert by file, better cert store search, limit ciphers in config
 

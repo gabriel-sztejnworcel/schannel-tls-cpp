@@ -44,7 +44,7 @@ int count_str(const char* buf, int len, const std::string& str_to_count)
 
 TEST(tcp_tests, test_simple_tcp_client_server)
 {
-    winsock_init();
+    schannel::winsock_init();
     
     std::string msg_received;
 
@@ -97,7 +97,7 @@ TEST(tcp_tests, test_simple_tcp_client_server)
 
 TEST(tls_tests, test_simple_tls_client_server)
 {
-    winsock_init();
+    schannel::winsock_init();
 
     std::string msg_received;
 
@@ -109,7 +109,7 @@ TEST(tls_tests, test_simple_tls_client_server)
             tls_config.enabled_protocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_3_SERVER;
             tls_config.cert_store_location = CERT_SYSTEM_STORE_CURRENT_USER;
             tls_config.cert_store_name = "My";
-            tls_config.cert_subject_match = "gabriel-sztejnworcel.com";
+            tls_config.cert_subject_match = ""; // get any certificate from the store
 
             schannel::TLSServer tls_server(tls_config);
             tls_server.listen(SERVER_HOSTNAME, TLS_SERVER_PORT);
@@ -158,7 +158,7 @@ TEST(tls_tests, test_simple_tls_client_server)
 
 TEST(tls_tests, test_tls_send_10000_messages)
 {
-    winsock_init();
+    schannel::winsock_init();
 
     int message_count = 0;
 
@@ -170,7 +170,7 @@ TEST(tls_tests, test_tls_send_10000_messages)
             tls_config.enabled_protocols = SP_PROT_TLS1_2_SERVER | SP_PROT_TLS1_3_SERVER;
             tls_config.cert_store_location = CERT_SYSTEM_STORE_CURRENT_USER;
             tls_config.cert_store_name = "My";
-            tls_config.cert_subject_match = "gabriel-sztejnworcel.com";
+            tls_config.cert_subject_match = ""; // get any certificate from the store
 
             schannel::TLSServer tls_server(tls_config);
             tls_server.listen(SERVER_HOSTNAME, TLS_SERVER_PORT);
