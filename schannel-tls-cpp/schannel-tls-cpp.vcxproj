@@ -119,7 +119,10 @@
     <ClInclude Include="tcp-server.h" />
     <ClInclude Include="tcp-socket.h" />
     <ClInclude Include="tcp-client.h" />
-    <ClInclude Include="tls.h" />
+    <ClInclude Include="tls-config.h" />
+    <ClInclude Include="tls-server.h" />
+    <ClInclude Include="tls-socket.h" />
+    <ClInclude Include="tls-client.h" />
     <ClInclude Include="win32-exception.h" />
   </ItemGroup>
   <ItemGroup>
@@ -127,7 +130,9 @@
     <ClCompile Include="tcp-server.cpp" />
     <ClCompile Include="tcp-socket.cpp" />
     <ClCompile Include="tcp-client.cpp" />
-    <ClCompile Include="tls.cpp" />
+    <ClCompile Include="tls-server.cpp" />
+    <ClCompile Include="tls-socket.cpp" />
+    <ClCompile Include="tls-client.cpp" />
     <ClCompile Include="win32-exception.cpp" />
   </ItemGroup>
   <ItemGroup>

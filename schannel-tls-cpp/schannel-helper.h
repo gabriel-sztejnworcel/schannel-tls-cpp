@@ -2,10 +2,11 @@
 
 #define SECURITY_WIN32
 
-#include "tcp-client.h"
-
 #include <Windows.h>
 #include <sspi.h>
+#include <schnlsp.h>
+
+#include "tcp-client.h"
 
 #include <memory>
 

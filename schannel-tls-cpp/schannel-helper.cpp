@@ -6,8 +6,6 @@
 #include "schannel-helper.h"
 #include "win32-exception.h"
 
-#include <schnlsp.h>
-
 #include <sstream>
 #include <memory>
 

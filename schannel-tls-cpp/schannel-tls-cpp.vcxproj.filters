@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="tls.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="schannel-helper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -33,11 +30,20 @@
     <ClInclude Include="tcp-client.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="tls-socket.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tls-config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tls-server.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tls-client.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="tls.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="schannel-helper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -51,6 +57,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="tcp-client.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tls-socket.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tls-server.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tls-client.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
