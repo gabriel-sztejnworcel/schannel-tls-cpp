@@ -5,7 +5,7 @@
 
 - add sample client/server ** V
 - readme **
-- documentation? **
+- documentation? ** V
 
 - close in d'tors / pass references
 - memory leaks
