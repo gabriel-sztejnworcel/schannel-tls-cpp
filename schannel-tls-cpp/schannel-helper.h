@@ -22,7 +22,11 @@ public:
     static void free_cred_handle(CredHandle* cred_handle);
 
     static SecHandle establish_server_security_context(CredHandle server_cred_handle, TCPSocket tcp_socket);
-    static SecHandle establish_client_security_context(CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket);
+
+    static SecHandle establish_client_security_context(
+        CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket, bool verify_server_cert
+    );
+
     static void delete_security_context(SecHandle* security_context);
 
     static SecPkgContext_StreamSizes get_stream_sizes(SecHandle security_context);

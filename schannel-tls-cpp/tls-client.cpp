@@ -18,6 +18,10 @@ TLSClient::~TLSClient()
 TLSSocket TLSClient::connect(const std::string& hostname, short port)
 {
     auto tcp_socket = tcp_client.connect(hostname, port);
-    SecHandle security_context = SchannelHelper::establish_client_security_context(client_cred_handle_, hostname, tcp_socket);
+
+    SecHandle security_context = SchannelHelper::establish_client_security_context(
+        client_cred_handle_, hostname, tcp_socket, tls_config_.verify_server_cert
+    );
+
     return TLSSocket(tcp_socket, security_context);
 }

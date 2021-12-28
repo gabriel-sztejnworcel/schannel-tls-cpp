@@ -301,7 +301,8 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
     return security_context_handle;
 }
 
-SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket)
+SecHandle SchannelHelper::establish_client_security_context(
+    CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket, bool verify_server_cert)
 {
     SecHandle security_context_handle = { 0 };
 
@@ -375,13 +376,21 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
                 );
             }
 
-            secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+            secure_buffer_in[0].cbBuffer = tcp_socket.recv(
+                (char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE
+            );
+
+            unsigned long context_requirements = ISC_REQ_CONFIDENTIALITY;
+            if (!verify_server_cert)
+            {
+                context_requirements |= ISC_REQ_MANUAL_CRED_VALIDATION;
+            }
 
             SECURITY_STATUS sec_status = InitializeSecurityContext(
                 &client_cred_handle,
                 &security_context_handle,
                 (wchar_t*)hostname_wstr.c_str(),
-                ISC_REQ_CONFIDENTIALITY | ISC_REQ_MANUAL_CRED_VALIDATION,
+                context_requirements,
                 0,
                 SECURITY_NATIVE_DREP,
                 &secure_buffer_desc_in,
@@ -421,6 +430,9 @@ SecHandle SchannelHelper::establish_client_security_context(CredHandle client_cr
             case SEC_I_CONTINUE_NEEDED:
                 // Nothing, another iteration
                 break;
+
+            case SEC_E_UNTRUSTED_ROOT:
+                throw std::runtime_error("establish_client_security_context: Untrusted root CA");
 
             case SEC_I_INCOMPLETE_CREDENTIALS:
             case SEC_E_INCOMPLETE_MESSAGE:

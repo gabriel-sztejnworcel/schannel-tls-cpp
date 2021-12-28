@@ -134,6 +134,7 @@ TEST(tls_tests, test_simple_tls_client_server)
         {
             schannel::TLSConfig tls_config;
             tls_config.enabled_protocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_3_CLIENT;
+            tls_config.verify_server_cert = false;
 
             schannel::TLSClient tls_client(tls_config);
             auto tls_socket = tls_client.connect(SERVER_HOSTNAME, TLS_SERVER_PORT);
@@ -205,6 +206,7 @@ TEST(tls_tests, test_tls_send_10000_messages)
         {
             schannel::TLSConfig tls_config;
             tls_config.enabled_protocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_3_CLIENT;
+            tls_config.verify_server_cert = false;
 
             schannel::TLSClient tls_client(tls_config);
             auto tls_socket = tls_client.connect(SERVER_HOSTNAME, TLS_SERVER_PORT);
