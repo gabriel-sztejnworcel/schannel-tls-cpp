@@ -1,3 +1,8 @@
+/**
+* schannel-tls-cpp
+* Copyright (c) 2021 Gabriel Sztejnworcel
+*/
+
 #pragma once
 
 #include "tcp-socket.h"

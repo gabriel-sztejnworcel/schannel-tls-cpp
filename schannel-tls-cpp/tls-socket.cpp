@@ -1,3 +1,7 @@
+/**
+* schannel-tls-cpp
+* Copyright (c) 2021 Gabriel Sztejnworcel
+*/
 
 #include "tls-socket.h"
 #include "schannel-helper.h"

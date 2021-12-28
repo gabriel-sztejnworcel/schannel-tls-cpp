@@ -3,11 +3,11 @@
 - alert buffer in initialize/accept
 - cert by file, better cert store search, limit ciphers in config
 
-- add sample client/server **
+- add sample client/server ** V
 - readme **
 - documentation? **
 
-- close in d'tors / pass references **
+- close in d'tors / pass references
 - memory leaks
 - how it handles stream/packets
 - accept timeout (tests stuck)

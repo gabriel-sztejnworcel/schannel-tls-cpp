@@ -1,3 +1,7 @@
+/**
+* schannel-tls-cpp
+* Copyright (c) 2021 Gabriel Sztejnworcel
+*/
 
 #pragma comment(lib, "Secur32")
 #pragma comment(lib, "Crypt32")
