@@ -1,22 +1,10 @@
-- verify certificate ** V
-- add more tests
+- client certificate
+- certificate file
+- CA file
+- improve cert store
+- more tests
 - alert buffer in initialize/accept
-- cert by file, better cert store search, limit ciphers in config
-
-- add sample client/server ** V
-- readme **
-- documentation? ** V
-
 - close in d'tors / pass references
 - memory leaks
-- how it handles stream/packets
 - accept timeout (tests stuck)
-
-- design V
-- review tcp (+buffers) V
-- review tls V
-- tests library V
-- int/size_t/long V
-- review schannel (+buffers) V
-- config: certificates (store, file, client), protocol version, ciphers V
-- exceptions + messages V
+- more review
