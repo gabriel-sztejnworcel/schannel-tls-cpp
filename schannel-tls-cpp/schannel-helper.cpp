@@ -19,6 +19,33 @@
 
 using namespace schannel;
 
+static void init_sec_buffer(SecBuffer& secure_buffer, unsigned long type, unsigned long len, void* buffer)
+{
+    secure_buffer.BufferType = type;
+    secure_buffer.cbBuffer = len;
+    secure_buffer.pvBuffer = buffer;
+}
+
+static void init_sec_buffer_desc(
+    SecBufferDesc& secure_buffer_desc, unsigned long version, unsigned long num_buffers, SecBuffer* buffers)
+{
+    secure_buffer_desc.ulVersion = version;
+    secure_buffer_desc.cBuffers = num_buffers;
+    secure_buffer_desc.pBuffers = buffers;
+}
+
+static void free_all_buffers(SecBufferDesc& secure_buffer_desc)
+{
+    for (unsigned long i = 0; i < secure_buffer_desc.cBuffers; ++i)
+    {
+        auto buffer = secure_buffer_desc.pBuffers[i].pvBuffer;
+        if (buffer != nullptr)
+        {
+            FreeContextBuffer(buffer);
+        }
+    }
+}
+
 const CERT_CONTEXT* SchannelHelper::get_certificate(
     DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
 {
@@ -154,42 +181,27 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
     {
         // Input buffer
         auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+        
         SecBuffer secure_buffer_in[2] = { 0 };
-
-        secure_buffer_in[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_in[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
-        secure_buffer_in[0].pvBuffer = buffer_in.get();
-
-        secure_buffer_in[1].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_in[1].cbBuffer = 0;
-        secure_buffer_in[1].pvBuffer = nullptr;
-
+        init_sec_buffer(secure_buffer_in[0], SECBUFFER_TOKEN, SCHANNEL_NEGOTIATE_BUFFER_SIZE, buffer_in.get());
+        init_sec_buffer(secure_buffer_in[1], SECBUFFER_EMPTY, 0, nullptr);
+        
         SecBufferDesc secure_buffer_desc_in = { 0 };
-        secure_buffer_desc_in.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_in.cBuffers = 2;
-        secure_buffer_desc_in.pBuffers = secure_buffer_in;
+        init_sec_buffer_desc(secure_buffer_desc_in, SECBUFFER_VERSION, 2, secure_buffer_in);
 
         // Output buffer
         SecBuffer secure_buffer_out[3] = { 0 };
-
-        secure_buffer_out[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_out[0].cbBuffer = 0;
-        secure_buffer_out[0].pvBuffer = nullptr;
-
-        secure_buffer_out[1].BufferType = SECBUFFER_ALERT;
-        secure_buffer_out[1].cbBuffer = 0;
-        secure_buffer_out[1].pvBuffer = nullptr;
-
-        secure_buffer_out[2].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_out[2].cbBuffer = 0;
-        secure_buffer_out[2].pvBuffer = nullptr;
-
+        init_sec_buffer(secure_buffer_out[0], SECBUFFER_TOKEN, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[1], SECBUFFER_ALERT, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[2], SECBUFFER_EMPTY, 0, nullptr);
+        
         SecBufferDesc secure_buffer_desc_out = { 0 };
-        secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_out.cBuffers = 3;
-        secure_buffer_desc_out.pBuffers = secure_buffer_out;
+        init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 3, secure_buffer_out);
 
         unsigned long context_requirements = ASC_REQ_ALLOCATE_MEMORY | ASC_REQ_CONFIDENTIALITY;
+
+        // We use ASC_REQ_ALLOCATE_MEMORY which means the buffers will be allocated for us, we need to make sure we free them.
+        DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
 
         ULONG context_attributes = 0;
         TimeStamp life_time = { 0 };
@@ -312,24 +324,20 @@ SecHandle SchannelHelper::establish_client_security_context_first_stage(
     try
     {
         SecBuffer secure_buffer_out[1] = { 0 };
-        secure_buffer_out[0].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_out[0].cbBuffer = 0;
-        secure_buffer_out[0].pvBuffer = nullptr;
+        init_sec_buffer(secure_buffer_out[0], SECBUFFER_EMPTY, 0, nullptr);
 
         SecBufferDesc secure_buffer_desc_out = { 0 };
-        secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_out.cBuffers = 1;
-        secure_buffer_desc_out.pBuffers = secure_buffer_out;
+        init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 1, secure_buffer_out);
 
         ULONG context_attributes = 0;
         TimeStamp life_time = { 0 };
 
         std::wstring hostname_wstr(hostname.begin(), hostname.end());
 
-        unsigned long context_requirements =
-            ISC_REQ_ALLOCATE_MEMORY | /***/
-            // ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY | ISC_REQ_STREAM;
-            ISC_REQ_CONFIDENTIALITY;
+        unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
+
+        // We use ISC_REQ_ALLOCATE_MEMORY which means the buffers will be allocated for us, we need to make sure we free them.
+        DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
 
         SECURITY_STATUS sec_status = InitializeSecurityContext(
             &client_cred_handle,
@@ -382,57 +390,32 @@ SecHandle SchannelHelper::establish_client_security_context_second_stage(
         // Input buffer
         auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
         SecBuffer secure_buffer_in[4] = { 0 };
-
-        secure_buffer_in[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_in[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
-        secure_buffer_in[0].pvBuffer = buffer_in.get();
-
-        secure_buffer_in[1].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_in[1].cbBuffer = 0;
-        secure_buffer_in[1].pvBuffer = nullptr;
-
-        secure_buffer_in[2].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_in[2].cbBuffer = 0;
-        secure_buffer_in[2].pvBuffer = nullptr;
-
-        secure_buffer_in[3].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_in[3].cbBuffer = 0;
-        secure_buffer_in[3].pvBuffer = nullptr;
+        init_sec_buffer(secure_buffer_in[0], SECBUFFER_TOKEN, SCHANNEL_NEGOTIATE_BUFFER_SIZE, buffer_in.get());
+        init_sec_buffer(secure_buffer_in[1], SECBUFFER_EMPTY, 0, nullptr);
+        init_sec_buffer(secure_buffer_in[2], SECBUFFER_EMPTY, 0, nullptr);
+        init_sec_buffer(secure_buffer_in[3], SECBUFFER_EMPTY, 0, nullptr);
 
         SecBufferDesc secure_buffer_desc_in = { 0 };
-        secure_buffer_desc_in.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_in.cBuffers = 4;
-        secure_buffer_desc_in.pBuffers = secure_buffer_in;
+        init_sec_buffer_desc(secure_buffer_desc_in, SECBUFFER_VERSION, 4, secure_buffer_in);
 
         // Output buffer
         SecBuffer secure_buffer_out[3] = { 0 };
-
-        secure_buffer_out[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_out[0].cbBuffer = 0;
-        secure_buffer_out[0].pvBuffer = nullptr;
-
-        secure_buffer_out[1].BufferType = SECBUFFER_ALERT;
-        secure_buffer_out[1].cbBuffer = 0;
-        secure_buffer_out[1].pvBuffer = nullptr;
-
-        secure_buffer_out[2].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_out[2].cbBuffer = 0;
-        secure_buffer_out[2].pvBuffer = nullptr;
+        init_sec_buffer(secure_buffer_out[0], SECBUFFER_TOKEN, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[1], SECBUFFER_ALERT, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[2], SECBUFFER_EMPTY, 0, nullptr);
 
         SecBufferDesc secure_buffer_desc_out = { 0 };
-        secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_out.cBuffers = 3;
-        secure_buffer_desc_out.pBuffers = secure_buffer_out;
+        init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 3, secure_buffer_out);
 
         ULONG context_attributes = 0;
         TimeStamp life_time = { 0 };
 
         std::wstring hostname_wstr(hostname.begin(), hostname.end());
 
-        unsigned long context_requirements =
-            ISC_REQ_ALLOCATE_MEMORY | /***/
-            // ISC_REQ_SEQUENCE_DETECT | ISC_REQ_REPLAY_DETECT | ISC_REQ_CONFIDENTIALITY | ISC_REQ_STREAM;
-            ISC_REQ_CONFIDENTIALITY;
+        unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
+
+        // We use ISC_REQ_ALLOCATE_MEMORY which means the buffers will be allocated for us, we need to make sure we free them.
+        DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
 
         if (!verify_server_cert)
         {
