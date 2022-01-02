@@ -12,6 +12,7 @@
 
 #include <sstream>
 #include <memory>
+// #include <iostream>
 
 #define SCHANNEL_NEGOTIATE_BUFFER_SIZE 16384
 
@@ -185,69 +186,41 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
         secure_buffer_desc_in.pBuffers = secure_buffer_in;
 
         // Output buffer
-        auto buffer_out = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
-        SecBuffer secure_buffer_out[1] = { 0 };
+        SecBuffer secure_buffer_out[3] = { 0 };
 
         secure_buffer_out[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_out[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
-        secure_buffer_out[0].pvBuffer = buffer_out.get();
+        secure_buffer_out[0].cbBuffer = 0;
+        secure_buffer_out[0].pvBuffer = nullptr;
+
+        secure_buffer_out[1].BufferType = SECBUFFER_ALERT;
+        secure_buffer_out[1].cbBuffer = 0;
+        secure_buffer_out[1].pvBuffer = nullptr;
+
+        secure_buffer_out[2].BufferType = SECBUFFER_EMPTY;
+        secure_buffer_out[2].cbBuffer = 0;
+        secure_buffer_out[2].pvBuffer = nullptr;
 
         SecBufferDesc secure_buffer_desc_out = { 0 };
         secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_out.cBuffers = 1;
+        secure_buffer_desc_out.cBuffers = 3;
         secure_buffer_desc_out.pBuffers = secure_buffer_out;
+
+        unsigned long context_requirements = ASC_REQ_ALLOCATE_MEMORY | ASC_REQ_CONFIDENTIALITY;
 
         ULONG context_attributes = 0;
         TimeStamp life_time = { 0 };
 
-        secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
-
-        SECURITY_STATUS sec_status = AcceptSecurityContext(
-            &server_cred_handle,
-            nullptr,
-            &secure_buffer_desc_in,
-            ASC_REQ_CONFIDENTIALITY,
-            0,
-            &security_context_handle,
-            &secure_buffer_desc_out,
-            &context_attributes,
-            &life_time
-        );
-
-        if (sec_status != SEC_I_CONTINUE_NEEDED)
+        bool authn_completed = false;
+        bool first_iteration = true;
+        while (!authn_completed)
         {
-            throw Win32Exception(
-                "establish_server_security_context", "AcceptSecurityContext", sec_status
-            );
-        }
-
-        bool auth_completed = false;
-        while (true)
-        {
-            if (secure_buffer_out[0].cbBuffer > 0)
-            {
-                int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                if (sent != secure_buffer_out[0].cbBuffer)
-                {
-                    throw std::runtime_error(
-                        "establish_server_security_context: Unexpected number of bytes sent to client"
-                    );
-                }
-            }
-
-            if (auth_completed)
-            {
-                break;
-            }
-
-            secure_buffer_in[0].cbBuffer =
-                tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+            secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
 
             SECURITY_STATUS sec_status = AcceptSecurityContext(
                 &server_cred_handle,
-                &security_context_handle,
+                first_iteration ? nullptr : &security_context_handle,
                 &secure_buffer_desc_in,
-                ASC_REQ_CONFIDENTIALITY,
+                context_requirements,
                 0,
                 &security_context_handle,
                 &secure_buffer_desc_out,
@@ -255,13 +228,37 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
                 &life_time
             );
 
-            SECURITY_STATUS complete_sec_status = SEC_E_OK;
+            first_iteration = false;
 
             switch (sec_status)
             {
+            case SEC_E_OK:
+            case SEC_I_CONTINUE_NEEDED:
+                
+                if (secure_buffer_out[0].cbBuffer > 0)
+                {
+                    int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+                    if (sent != secure_buffer_out[0].cbBuffer)
+                    {
+                        throw std::runtime_error(
+                            "establish_server_security_context: Unexpected number of bytes sent to server"
+                        );
+                    }
+                }
+
+                if (sec_status == SEC_E_OK)
+                {
+                    authn_completed = true;
+                }
+
+                break;
+                break;
+
             case SEC_I_COMPLETE_AND_CONTINUE:
             case SEC_I_COMPLETE_NEEDED:
-
+            {
+                SECURITY_STATUS complete_sec_status = SEC_E_OK; 
+                
                 complete_sec_status = CompleteAuthToken(
                     &security_context_handle,
                     &secure_buffer_desc_out
@@ -274,20 +271,24 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
                     );
                 }
 
+                if (secure_buffer_out[0].cbBuffer > 0)
+                {
+                    int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+                    if (sent != secure_buffer_out[0].cbBuffer)
+                    {
+                        throw std::runtime_error(
+                            "establish_server_security_context: Unexpected number of bytes sent to server"
+                        );
+                    }
+                }
+
                 if (sec_status == SEC_I_COMPLETE_NEEDED)
                 {
-                    auth_completed = true;
+                    authn_completed = true;
                 }
 
                 break;
-
-            case SEC_I_CONTINUE_NEEDED:
-                // Nothing, another iteration
-                break;
-
-            case SEC_E_OK:
-                auth_completed = true;
-                break;
+            }
 
             default:
                 throw Win32Exception(
