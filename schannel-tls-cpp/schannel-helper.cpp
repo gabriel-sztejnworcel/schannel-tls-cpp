@@ -34,6 +34,17 @@ static void init_sec_buffer_desc(
     secure_buffer_desc.pBuffers = buffers;
 }
 
+static void send_and_verify_all_sent(TCPSocket& tcp_socket, const char* buf, int len)
+{
+    int sent = tcp_socket.send(buf, len);
+    if (sent != len)
+    {
+        throw std::runtime_error(
+            "send_and_verify_all_sent: Unexpected number of bytes sent to server"
+        );
+    }
+}
+
 static void free_all_buffers(SecBufferDesc& secure_buffer_desc)
 {
     for (unsigned long i = 0; i < secure_buffer_desc.cBuffers; ++i)
@@ -108,17 +119,8 @@ CredHandle SchannelHelper::get_schannel_server_handle(const CERT_CONTEXT* cert_c
     TimeStamp life_time;
     wchar_t unisp_name[] = UNISP_NAME;
 
-    SECURITY_STATUS sec_status = AcquireCredentialsHandle(
-        nullptr,
-        unisp_name,
-        SECPKG_CRED_INBOUND,
-        nullptr,
-        &cred_data,
-        nullptr,
-        nullptr,
-        &cred_handle,
-        &life_time
-    );
+    SECURITY_STATUS sec_status = AcquireCredentialsHandle(nullptr, unisp_name, SECPKG_CRED_INBOUND, nullptr,
+                                                          &cred_data, nullptr, nullptr, &cred_handle, &life_time);
 
     if (sec_status != SEC_E_OK)
     {
@@ -140,17 +142,9 @@ CredHandle SchannelHelper::get_schannel_client_handle(DWORD enabled_protocols)
     TimeStamp life_time;
     wchar_t unisp_name[] = UNISP_NAME;
 
-    SECURITY_STATUS sec_status = AcquireCredentialsHandle(
-        nullptr,
-        unisp_name,
-        SECPKG_CRED_OUTBOUND,
-        nullptr,
-        &cred_data,
-        nullptr,
-        nullptr,
-        &cred_handle,
-        &life_time
-    );
+    SECURITY_STATUS sec_status = AcquireCredentialsHandle(nullptr, unisp_name, SECPKG_CRED_OUTBOUND,
+                                                          nullptr, &cred_data, nullptr, nullptr,
+                                                          &cred_handle, &life_time);
 
     if (sec_status != SEC_E_OK)
     {
@@ -212,17 +206,11 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
         {
             secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
 
-            SECURITY_STATUS sec_status = AcceptSecurityContext(
-                &server_cred_handle,
-                first_iteration ? nullptr : &security_context_handle,
-                &secure_buffer_desc_in,
-                context_requirements,
-                0,
-                &security_context_handle,
-                &secure_buffer_desc_out,
-                &context_attributes,
-                &life_time
-            );
+            SECURITY_STATUS sec_status = AcceptSecurityContext(&server_cred_handle,
+                                                               first_iteration ? nullptr : &security_context_handle,
+                                                               &secure_buffer_desc_in, context_requirements, 0,
+                                                               &security_context_handle, &secure_buffer_desc_out,
+                                                               &context_attributes, &life_time);
 
             first_iteration = false;
 
@@ -233,13 +221,7 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
                 
                 if (secure_buffer_out[0].cbBuffer > 0)
                 {
-                    int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                    if (sent != secure_buffer_out[0].cbBuffer)
-                    {
-                        throw std::runtime_error(
-                            "establish_server_security_context: Unexpected number of bytes sent to server"
-                        );
-                    }
+                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
                 }
 
                 if (sec_status == SEC_E_OK)
@@ -254,11 +236,7 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
             case SEC_I_COMPLETE_NEEDED:
             {
                 SECURITY_STATUS complete_sec_status = SEC_E_OK; 
-                
-                complete_sec_status = CompleteAuthToken(
-                    &security_context_handle,
-                    &secure_buffer_desc_out
-                );
+                complete_sec_status = CompleteAuthToken(&security_context_handle, &secure_buffer_desc_out);
 
                 if (complete_sec_status != SEC_E_OK)
                 {
@@ -269,13 +247,7 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
 
                 if (secure_buffer_out[0].cbBuffer > 0)
                 {
-                    int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                    if (sent != secure_buffer_out[0].cbBuffer)
-                    {
-                        throw std::runtime_error(
-                            "establish_server_security_context: Unexpected number of bytes sent to server"
-                        );
-                    }
+                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
                 }
 
                 if (sec_status == SEC_I_COMPLETE_NEEDED)
@@ -339,20 +311,9 @@ SecHandle SchannelHelper::establish_client_security_context_first_stage(
         // We use ISC_REQ_ALLOCATE_MEMORY which means the buffers will be allocated for us, we need to make sure we free them.
         DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
 
-        SECURITY_STATUS sec_status = InitializeSecurityContext(
-            &client_cred_handle,
-            nullptr,
-            (wchar_t*)hostname_wstr.c_str(),
-            context_requirements,
-            0,
-            0,
-            nullptr,
-            0,
-            &security_context_handle,
-            &secure_buffer_desc_out,
-            &context_attributes,
-            &life_time
-        );
+        SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, nullptr, (wchar_t*)hostname_wstr.c_str(),
+                                                               context_requirements, 0, 0, nullptr, 0, &security_context_handle,
+                                                               &secure_buffer_desc_out, &context_attributes, &life_time);
 
         if (sec_status != SEC_I_CONTINUE_NEEDED)
         {
@@ -363,13 +324,7 @@ SecHandle SchannelHelper::establish_client_security_context_first_stage(
 
         if (secure_buffer_out[0].cbBuffer > 0)
         {
-            int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-            if (sent != secure_buffer_out[0].cbBuffer)
-            {
-                throw std::runtime_error(
-                    "establish_client_security_context: Unexpected number of bytes sent to server"
-                );
-            }
+            send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
         }
     }
     catch (...)
@@ -423,26 +378,23 @@ SecHandle SchannelHelper::establish_client_security_context_second_stage(
         }
 
         bool authn_completed = false;
+        int recv_offset = 0;
         while (!authn_completed)
         {
-            secure_buffer_in[0].cbBuffer = tcp_socket.recv(
-                (char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE
+            std::cout << "recv_offset: " << recv_offset << std::endl;
+
+            secure_buffer_in[0].cbBuffer = recv_offset + tcp_socket.recv(
+                (char*)secure_buffer_in[0].pvBuffer + recv_offset, SCHANNEL_NEGOTIATE_BUFFER_SIZE
             );
 
-            SECURITY_STATUS sec_status = InitializeSecurityContext(
-                &client_cred_handle,
-                &security_context_handle,
-                (wchar_t*)hostname_wstr.c_str(),
-                context_requirements,
-                0,
-                0,
-                &secure_buffer_desc_in,
-                0,
-                &security_context_handle,
-                &secure_buffer_desc_out,
-                &context_attributes,
-                &life_time
-            );
+            std::cout << "secure_buffer_in[0].cbBuffer: " << secure_buffer_in[0].cbBuffer << std::endl;
+
+            recv_offset = 0;
+
+            SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, &security_context_handle,
+                                                                   (wchar_t*)hostname_wstr.c_str(), context_requirements, 0, 0,
+                                                                   &secure_buffer_desc_in, 0, &security_context_handle,
+                                                                   &secure_buffer_desc_out, &context_attributes, &life_time);
 
             switch (sec_status)
             {
@@ -451,18 +403,34 @@ SecHandle SchannelHelper::establish_client_security_context_second_stage(
 
                 if (secure_buffer_out[0].cbBuffer > 0)
                 {
-                    int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                    if (sent != secure_buffer_out[0].cbBuffer)
-                    {
-                        throw std::runtime_error(
-                            "establish_client_security_context: Unexpected number of bytes sent to server"
-                        );
-                    }
+                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
                 }
 
                 if (sec_status == SEC_E_OK)
                 {
                     authn_completed = true;
+                }
+
+                if (sec_status == SEC_I_CONTINUE_NEEDED)
+                {
+                    for (unsigned long i = 1; i < secure_buffer_desc_in.cBuffers; ++i)
+                    {
+                        SecBuffer& secure_buffer = secure_buffer_in[i];
+                        if (secure_buffer.BufferType == SECBUFFER_EXTRA)
+                        {
+                            // Calculate the beginning of the extra bytes
+                            int extra_offset = secure_buffer_in[0].cbBuffer - secure_buffer.cbBuffer;
+                            std::cout << "extra_offset: " << extra_offset << std::endl;
+                            std::cout << "secure_buffer.cbBuffer: " << secure_buffer.cbBuffer << std::endl;
+                            char* extra_bytes = (char*)secure_buffer_in[0].pvBuffer + extra_offset;
+
+                            // Copy to the beginning of the buffer for next time
+                            memcpy(secure_buffer_in[0].pvBuffer, extra_bytes, secure_buffer.cbBuffer);
+                            recv_offset = secure_buffer.cbBuffer;
+
+                            break;
+                        }
+                    }
                 }
 
                 break;
@@ -471,11 +439,7 @@ SecHandle SchannelHelper::establish_client_security_context_second_stage(
             case SEC_I_COMPLETE_NEEDED:
             {
                 SECURITY_STATUS complete_sec_status = SEC_E_OK;
-
-                complete_sec_status = CompleteAuthToken(
-                    &security_context_handle,
-                    &secure_buffer_desc_out
-                );
+                complete_sec_status = CompleteAuthToken(&security_context_handle, &secure_buffer_desc_out);
 
                 if (complete_sec_status != SEC_E_OK)
                 {
@@ -486,18 +450,31 @@ SecHandle SchannelHelper::establish_client_security_context_second_stage(
 
                 if (secure_buffer_out[0].cbBuffer > 0)
                 {
-                    int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                    if (sent != secure_buffer_out[0].cbBuffer)
-                    {
-                        throw std::runtime_error(
-                            "establish_client_security_context: Unexpected number of bytes sent to server"
-                        );
-                    }
+                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
                 }
 
                 if (sec_status == SEC_I_COMPLETE_NEEDED)
                 {
                     authn_completed = true;
+                }
+
+                if (sec_status == SEC_I_COMPLETE_AND_CONTINUE)
+                {
+                    for (unsigned long i = 1; i < secure_buffer_desc_in.cBuffers; ++i)
+                    {
+                        SecBuffer& secure_buffer = secure_buffer_in[i];
+                        if (secure_buffer.BufferType == SECBUFFER_EXTRA)
+                        {
+                            // Calculate the beginning of the extra bytes
+                            int extra_offset = secure_buffer_in[0].cbBuffer - secure_buffer.cbBuffer;
+                            char* extra_bytes = (char*)secure_buffer_in[0].pvBuffer + extra_offset;
+
+                            // Copy to the beginning of the buffer for next time
+                            memcpy(secure_buffer_in[0].pvBuffer, extra_bytes, secure_buffer.cbBuffer);
+                            recv_offset = secure_buffer.cbBuffer;
+                            break;
+                        }
+                    }
                 }
 
                 break;
@@ -564,36 +541,17 @@ int SchannelHelper::encrypt_message(SecHandle security_context, SecPkgContext_St
     }
 
     SecBuffer secure_buffers[4] = { 0 };
-
-    secure_buffers[0].BufferType = SECBUFFER_STREAM_HEADER;
-    secure_buffers[0].cbBuffer = stream_sizes.cbHeader;
-    secure_buffers[0].pvBuffer = out_buf;
-
-    secure_buffers[1].BufferType = SECBUFFER_DATA;
-    secure_buffers[1].cbBuffer = in_len;
-    secure_buffers[1].pvBuffer = out_buf + stream_sizes.cbHeader;
-
-    secure_buffers[2].BufferType = SECBUFFER_STREAM_TRAILER;
-    secure_buffers[2].cbBuffer = stream_sizes.cbTrailer;
-    secure_buffers[2].pvBuffer = out_buf + stream_sizes.cbHeader + in_len;
-
-    secure_buffers[3].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[3].cbBuffer = 0;
-    secure_buffers[3].pvBuffer = nullptr;
+    init_sec_buffer(secure_buffers[0], SECBUFFER_STREAM_HEADER, stream_sizes.cbHeader, out_buf);
+    init_sec_buffer(secure_buffers[1], SECBUFFER_DATA, in_len, out_buf + stream_sizes.cbHeader);
+    init_sec_buffer(secure_buffers[2], SECBUFFER_STREAM_TRAILER, stream_sizes.cbTrailer, out_buf + stream_sizes.cbHeader + in_len);
+    init_sec_buffer(secure_buffers[3], SECBUFFER_EMPTY, 0, nullptr);
     
     SecBufferDesc secure_buffer_desc = { 0 };
-    secure_buffer_desc.ulVersion = SECBUFFER_VERSION;
-    secure_buffer_desc.cBuffers = 4;
-    secure_buffer_desc.pBuffers = secure_buffers;
+    init_sec_buffer_desc(secure_buffer_desc, SECBUFFER_VERSION, 4, secure_buffers);
 
     memcpy(secure_buffers[1].pvBuffer, in_buf, in_len);
 
-    SECURITY_STATUS sec_status = EncryptMessage(
-        &security_context,
-        0,
-        &secure_buffer_desc,
-        0
-    );
+    SECURITY_STATUS sec_status = EncryptMessage(&security_context, 0, &secure_buffer_desc, 0);
 
     if (sec_status != SEC_E_OK)
     {
@@ -621,37 +579,18 @@ int SchannelHelper::decrypt_message(SecHandle security_context, SecPkgContext_St
     auto decrypt_buf = std::make_unique<char[]>(in_len);
 
     SecBuffer secure_buffers[4] = { 0 };
-
-    secure_buffers[0].BufferType = SECBUFFER_DATA;
-    secure_buffers[0].cbBuffer = in_len;
-    secure_buffers[0].pvBuffer = decrypt_buf.get();
-
-    secure_buffers[1].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[1].cbBuffer = 0;
-    secure_buffers[1].pvBuffer = nullptr;
-
-    secure_buffers[2].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[2].cbBuffer = 0;
-    secure_buffers[2].pvBuffer = nullptr;
-
-    secure_buffers[3].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[3].cbBuffer = 0;
-    secure_buffers[3].pvBuffer = nullptr;
+    init_sec_buffer(secure_buffers[0], SECBUFFER_DATA, in_len, decrypt_buf.get());
+    init_sec_buffer(secure_buffers[1], SECBUFFER_EMPTY, 0, nullptr);
+    init_sec_buffer(secure_buffers[2], SECBUFFER_EMPTY, 0, nullptr);
+    init_sec_buffer(secure_buffers[3], SECBUFFER_EMPTY, 0, nullptr);
     
     SecBufferDesc secure_buffer_desc = { 0 };
-    secure_buffer_desc.ulVersion = SECBUFFER_VERSION;
-    secure_buffer_desc.cBuffers = 4;
-    secure_buffer_desc.pBuffers = secure_buffers;
+    init_sec_buffer_desc(secure_buffer_desc, SECBUFFER_VERSION, 4, secure_buffers);
 
     // Copy encrypted message to in-out temp buffer
     memcpy(decrypt_buf.get(), in_buf, in_len);
 
-    SECURITY_STATUS sec_status = DecryptMessage(
-        &security_context,
-        &secure_buffer_desc,
-        0,
-        nullptr
-    );
+    SECURITY_STATUS sec_status = DecryptMessage(&security_context, &secure_buffer_desc, 0, nullptr);
 
     if (sec_status == SEC_E_INCOMPLETE_MESSAGE)
     {
