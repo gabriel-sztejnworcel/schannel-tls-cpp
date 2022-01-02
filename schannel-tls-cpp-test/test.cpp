@@ -9,6 +9,7 @@
 #include <tcp-server.h>
 #include <tls-client.h>
 #include <tls-server.h>
+#include <defer-function.h>
 
 #include <thread>
 #include <mutex>
@@ -44,6 +45,22 @@ int count_str(const char* buf, int len, const std::string& str_to_count)
     }
 
     return count;
+}
+
+TEST(defer_function_test, test_simple_deferred_function)
+{
+    std::string msg;
+    
+    {
+        DeferFunction defer_function([&msg]()
+        {
+            msg = "Hello World";
+        });
+
+        EXPECT_NE(msg, "Hello World");
+    }
+
+    EXPECT_EQ(msg, "Hello World");
 }
 
 TEST(tcp_tests, test_simple_tcp_client_server)

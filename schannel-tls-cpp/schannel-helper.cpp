@@ -9,10 +9,11 @@
 
 #include "schannel-helper.h"
 #include "win32-exception.h"
+#include "defer-function.h"
 
 #include <sstream>
 #include <memory>
-// #include <iostream>
+#include <iostream>
 
 #define SCHANNEL_NEGOTIATE_BUFFER_SIZE 16384
 
@@ -21,61 +22,44 @@ using namespace schannel;
 const CERT_CONTEXT* SchannelHelper::get_certificate(
     DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
 {
-    HCERTSTORE personal_cert_store = nullptr;
-    const CERT_CONTEXT* cert_context = nullptr;
-
-    try
-    {
-        std::wstring cert_store_name_wstr(cert_store_name.begin(), cert_store_name.end());
+    std::wstring cert_store_name_wstr(cert_store_name.begin(), cert_store_name.end());
         
-        personal_cert_store = CertOpenStore(
-            CERT_STORE_PROV_SYSTEM,
-            X509_ASN_ENCODING,
-            0,
-            cert_store_location,
-            cert_store_name_wstr.c_str()
-        );
+    HCERTSTORE personal_cert_store = CertOpenStore(
+        CERT_STORE_PROV_SYSTEM,
+        X509_ASN_ENCODING,
+        0,
+        cert_store_location,
+        cert_store_name_wstr.c_str()
+    );
 
-        if (personal_cert_store == nullptr)
-        {
-            throw Win32Exception(
-                "get_certificate", "CertOpenStore", GetLastError()
-            );
-        }
-
-        // TODO: unique_ptr with custom deleter
-
-        std::wstring cert_subject_wstr(
-            cert_subject_match.begin(), cert_subject_match.end()
-        );
-
-        cert_context = CertFindCertificateInStore(
-            personal_cert_store,
-            X509_ASN_ENCODING,
-            0,
-            CERT_FIND_SUBJECT_STR,
-            cert_subject_wstr.c_str(),
-            nullptr
-        );
-
-        if (cert_context == nullptr)
-        {
-            throw Win32Exception(
-                "get_certificate", "CertFindCertificateInStore", GetLastError()
-            );
-        }
-    }
-    catch (...)
+    if (personal_cert_store == nullptr)
     {
-        if (personal_cert_store != nullptr)
-        {
-            CertCloseStore(personal_cert_store, 0);
-        }
-
-        throw;
+        throw Win32Exception(
+            "get_certificate", "CertOpenStore", GetLastError()
+        );
     }
 
-    CertCloseStore(personal_cert_store, 0);
+    DeferFunction cert_close_store_deferred([personal_cert_store]() { CertCloseStore(personal_cert_store, 0); });
+
+    std::wstring cert_subject_wstr(
+        cert_subject_match.begin(), cert_subject_match.end()
+    );
+
+    const CERT_CONTEXT* cert_context = CertFindCertificateInStore(
+        personal_cert_store,
+        X509_ASN_ENCODING,
+        0,
+        CERT_FIND_SUBJECT_STR,
+        cert_subject_wstr.c_str(),
+        nullptr
+    );
+
+    if (cert_context == nullptr)
+    {
+        throw Win32Exception(
+            "get_certificate", "CertFindCertificateInStore", GetLastError()
+        );
+    }
 
     return cert_context;
 }

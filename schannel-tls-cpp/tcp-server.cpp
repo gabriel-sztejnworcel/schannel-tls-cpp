@@ -7,9 +7,11 @@
 
 #include "tcp-server.h"
 #include "win32-exception.h"
+#include "defer-function.h"
 
 #include <memory>
 #include <functional>
+#include <iostream>
 
 #define BACKLOG 10
 
@@ -31,8 +33,7 @@ void TCPServer::listen(const std::string& hostname, short port)
         );
     }
 
-    // Bind to unique ptr to it will be released at the end
-    std::unique_ptr<addrinfo, std::function<void(addrinfo*)>> server_info_uptr(server_info, freeaddrinfo);
+    DeferFunction free_addrinfo_deferred([server_info]() { freeaddrinfo(server_info); });
 
     bool bound = false;
     SOCKET listen_sock = INVALID_SOCKET;
