@@ -57,6 +57,64 @@ static void free_all_buffers(SecBufferDesc& secure_buffer_desc)
     }
 }
 
+static std::string hex_dump(BYTE* buf, DWORD len)
+{
+    DWORD i, count, index;
+    CHAR rgb_digits[] = "0123456789abcdef";
+    CHAR rgb_line[100];
+    char cb_line;
+
+    std::stringstream str_stream;
+
+    for (index = 0; len; len -= count, buf += count, index += count)
+    {
+        count = (len > 16) ? 16 : len;
+
+        sprintf_s(rgb_line, 100, "%4.4x  ", index);
+        cb_line = 6;
+
+        for (i = 0; i < count; ++i)
+        {
+            rgb_line[cb_line++] = rgb_digits[buf[i] >> 4];
+            rgb_line[cb_line++] = rgb_digits[buf[i] & 0x0f];
+            if (i == 7)
+            {
+                rgb_line[cb_line++] = ':';
+            }
+            else
+            {
+                rgb_line[cb_line++] = ' ';
+            }
+        }
+        for (; i < 16; i++)
+        {
+            rgb_line[cb_line++] = ' ';
+            rgb_line[cb_line++] = ' ';
+            rgb_line[cb_line++] = ' ';
+        }
+
+        rgb_line[cb_line++] = ' ';
+
+        for (i = 0; i < count; i++)
+        {
+            if (buf[i] < 32 || buf[i] > 126)
+            {
+                rgb_line[cb_line++] = '.';
+            }
+            else
+            {
+                rgb_line[cb_line++] = buf[i];
+            }
+        }
+
+        rgb_line[cb_line++] = 0;
+        str_stream << "    ";
+        str_stream << rgb_line << std::endl;
+    }
+
+    return str_stream.str();
+}
+
 const CERT_CONTEXT* SchannelHelper::get_certificate(
     DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
 {
@@ -277,55 +335,17 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
 SecHandle SchannelHelper::establish_client_security_context(
     CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket, bool verify_server_cert)
 {
-    SecHandle security_context_handle = SchannelHelper::establish_client_security_context_first_stage(
-        client_cred_handle, hostname, tcp_socket
-    );
-
-    security_context_handle = SchannelHelper::establish_client_security_context_second_stage(
-        security_context_handle, client_cred_handle, hostname, tcp_socket, verify_server_cert
-    );
-
-    return security_context_handle;
-}
-
-SecHandle SchannelHelper::establish_client_security_context_first_stage(
-    CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket)
-{
     SecHandle security_context_handle = { 0 };
-    
+
     try
     {
-        SecBuffer secure_buffer_out[1] = { 0 };
-        init_sec_buffer(secure_buffer_out[0], SECBUFFER_EMPTY, 0, nullptr);
+        SchannelHelper::establish_client_security_context_first_stage(
+            client_cred_handle, hostname, tcp_socket, security_context_handle
+        );
 
-        SecBufferDesc secure_buffer_desc_out = { 0 };
-        init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 1, secure_buffer_out);
-
-        ULONG context_attributes = 0;
-        TimeStamp life_time = { 0 };
-
-        std::wstring hostname_wstr(hostname.begin(), hostname.end());
-
-        unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
-
-        // We use ISC_REQ_ALLOCATE_MEMORY which means the buffers will be allocated for us, we need to make sure we free them.
-        DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
-
-        SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, nullptr, (wchar_t*)hostname_wstr.c_str(),
-                                                               context_requirements, 0, 0, nullptr, 0, &security_context_handle,
-                                                               &secure_buffer_desc_out, &context_attributes, &life_time);
-
-        if (sec_status != SEC_I_CONTINUE_NEEDED)
-        {
-            throw Win32Exception(
-                "establish_client_security_context", "InitializeSecurityContext", sec_status
-            );
-        }
-
-        if (secure_buffer_out[0].cbBuffer > 0)
-        {
-            send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-        }
+        SchannelHelper::establish_client_security_context_second_stage(
+            client_cred_handle, hostname, tcp_socket, security_context_handle, verify_server_cert
+        );
     }
     catch (...)
     {
@@ -336,16 +356,84 @@ SecHandle SchannelHelper::establish_client_security_context_first_stage(
     return security_context_handle;
 }
 
-SecHandle SchannelHelper::establish_client_security_context_second_stage(
-    SecHandle security_context_handle, CredHandle client_cred_handle, const std::string& hostname,
-    TCPSocket tcp_socket, bool verify_server_cert)
+void SchannelHelper::establish_client_security_context_first_stage(
+    CredHandle client_cred_handle, const std::string& hostname,
+    TCPSocket tcp_socket, SecHandle& security_context_handle)
 {
-    try
+    ULONG context_attributes = 0;
+    unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
+    std::wstring hostname_wstr(hostname.begin(), hostname.end());
+
+    TimeStamp life_time = { 0 };
+
+    SecBuffer secure_buffer_out[1] = { 0 };
+    init_sec_buffer(secure_buffer_out[0], SECBUFFER_EMPTY, 0, nullptr);
+
+    SecBufferDesc secure_buffer_desc_out = { 0 };
+    init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 1, secure_buffer_out);
+
+    DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
+
+    SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, nullptr, (wchar_t*)hostname.c_str(),
+                                                           context_requirements, 0, 0, nullptr, 0, &security_context_handle,
+                                                           &secure_buffer_desc_out, &context_attributes, &life_time);
+
+    if (sec_status != SEC_I_CONTINUE_NEEDED)
     {
+        throw std::runtime_error(
+            "InitializeSecurityContext: " + std::to_string(sec_status)
+        );
+    }
+
+    if (secure_buffer_out[0].cbBuffer > 0)
+    {
+        send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+    }
+}
+
+void SchannelHelper::establish_client_security_context_second_stage(
+    CredHandle client_cred_handle, const std::string& hostname,
+    TCPSocket tcp_socket, SecHandle& security_context_handle, bool verify_server_cert)
+{
+    ULONG context_attributes = 0;
+
+    unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
+    if (!verify_server_cert)
+    {
+        context_requirements |= ISC_REQ_MANUAL_CRED_VALIDATION;
+    }
+
+    std::wstring hostname_wstr(hostname.begin(), hostname.end());
+
+    TimeStamp life_time = { 0 };
+
+    // Input buffer
+    auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+
+    int offset = 0;
+    bool skip_recv = false;
+
+    bool authn_complete = false;
+    while (!authn_complete)
+    {
+        int in_buffer_size = 0;
+
+        if (!skip_recv)
+        {
+            int received = tcp_socket.recv(buffer_in.get() + offset, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+            in_buffer_size = received + offset;
+        }
+        else
+        {
+            in_buffer_size = offset;
+        }
+
+        skip_recv = false;
+        offset = 0;
+
         // Input buffer
-        auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
         SecBuffer secure_buffer_in[4] = { 0 };
-        init_sec_buffer(secure_buffer_in[0], SECBUFFER_TOKEN, SCHANNEL_NEGOTIATE_BUFFER_SIZE, buffer_in.get());
+        init_sec_buffer(secure_buffer_in[0], SECBUFFER_TOKEN, in_buffer_size, buffer_in.get());
         init_sec_buffer(secure_buffer_in[1], SECBUFFER_EMPTY, 0, nullptr);
         init_sec_buffer(secure_buffer_in[2], SECBUFFER_EMPTY, 0, nullptr);
         init_sec_buffer(secure_buffer_in[3], SECBUFFER_EMPTY, 0, nullptr);
@@ -362,138 +450,54 @@ SecHandle SchannelHelper::establish_client_security_context_second_stage(
         SecBufferDesc secure_buffer_desc_out = { 0 };
         init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 3, secure_buffer_out);
 
-        ULONG context_attributes = 0;
-        TimeStamp life_time = { 0 };
-
-        std::wstring hostname_wstr(hostname.begin(), hostname.end());
-
-        unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
-
-        // We use ISC_REQ_ALLOCATE_MEMORY which means the buffers will be allocated for us, we need to make sure we free them.
         DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
 
-        if (!verify_server_cert)
+        SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, &security_context_handle,
+                                                               (wchar_t*)hostname.c_str(), context_requirements, 0, 0,
+                                                               &secure_buffer_desc_in, 0, &security_context_handle,
+                                                               &secure_buffer_desc_out, &context_attributes, &life_time);
+
+        if (sec_status == SEC_E_OK ||
+            sec_status == SEC_I_CONTINUE_NEEDED)
         {
-            context_requirements |= ISC_REQ_MANUAL_CRED_VALIDATION;
+            if (secure_buffer_out[0].cbBuffer > 0)
+            {
+                send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+            }
+
+            if (sec_status == SEC_I_CONTINUE_NEEDED)
+            {
+                for (int i = 1; i < 3; ++i)
+                {
+                    if (secure_buffer_in[i].BufferType == SECBUFFER_EXTRA &&
+                        secure_buffer_in[i].cbBuffer > 0)
+                    {
+                        offset = secure_buffer_in[0].cbBuffer - secure_buffer_in[i].cbBuffer;
+                        memmove(buffer_in.get(), buffer_in.get() + offset, secure_buffer_in[i].cbBuffer);
+                        offset = secure_buffer_in[i].cbBuffer;
+
+                        skip_recv = true;
+                        break;
+                    }
+                }
+            }
+
+            if (sec_status == SEC_E_OK)
+            {
+                authn_complete = true;
+            }
         }
-
-        bool authn_completed = false;
-        int recv_offset = 0;
-        while (!authn_completed)
+        else if (sec_status == SEC_E_INCOMPLETE_MESSAGE)
         {
-            std::cout << "recv_offset: " << recv_offset << std::endl;
-
-            secure_buffer_in[0].cbBuffer = recv_offset + tcp_socket.recv(
-                (char*)secure_buffer_in[0].pvBuffer + recv_offset, SCHANNEL_NEGOTIATE_BUFFER_SIZE
+            offset = secure_buffer_in[0].cbBuffer;
+        }
+        else
+        {
+            throw std::runtime_error(
+                "InitializeSecurityContext: " + std::to_string(sec_status)
             );
-
-            std::cout << "secure_buffer_in[0].cbBuffer: " << secure_buffer_in[0].cbBuffer << std::endl;
-
-            recv_offset = 0;
-
-            SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, &security_context_handle,
-                                                                   (wchar_t*)hostname_wstr.c_str(), context_requirements, 0, 0,
-                                                                   &secure_buffer_desc_in, 0, &security_context_handle,
-                                                                   &secure_buffer_desc_out, &context_attributes, &life_time);
-
-            switch (sec_status)
-            {
-            case SEC_E_OK:
-            case SEC_I_CONTINUE_NEEDED:
-
-                if (secure_buffer_out[0].cbBuffer > 0)
-                {
-                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                }
-
-                if (sec_status == SEC_E_OK)
-                {
-                    authn_completed = true;
-                }
-
-                if (sec_status == SEC_I_CONTINUE_NEEDED)
-                {
-                    for (unsigned long i = 1; i < secure_buffer_desc_in.cBuffers; ++i)
-                    {
-                        SecBuffer& secure_buffer = secure_buffer_in[i];
-                        if (secure_buffer.BufferType == SECBUFFER_EXTRA)
-                        {
-                            // Calculate the beginning of the extra bytes
-                            int extra_offset = secure_buffer_in[0].cbBuffer - secure_buffer.cbBuffer;
-                            std::cout << "extra_offset: " << extra_offset << std::endl;
-                            std::cout << "secure_buffer.cbBuffer: " << secure_buffer.cbBuffer << std::endl;
-                            char* extra_bytes = (char*)secure_buffer_in[0].pvBuffer + extra_offset;
-
-                            // Copy to the beginning of the buffer for next time
-                            memcpy(secure_buffer_in[0].pvBuffer, extra_bytes, secure_buffer.cbBuffer);
-                            recv_offset = secure_buffer.cbBuffer;
-
-                            break;
-                        }
-                    }
-                }
-
-                break;
-
-            case SEC_I_COMPLETE_AND_CONTINUE:
-            case SEC_I_COMPLETE_NEEDED:
-            {
-                SECURITY_STATUS complete_sec_status = SEC_E_OK;
-                complete_sec_status = CompleteAuthToken(&security_context_handle, &secure_buffer_desc_out);
-
-                if (complete_sec_status != SEC_E_OK)
-                {
-                    throw Win32Exception(
-                        "establish_client_security_context", "CompleteAuthToken", complete_sec_status
-                    );
-                }
-
-                if (secure_buffer_out[0].cbBuffer > 0)
-                {
-                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                }
-
-                if (sec_status == SEC_I_COMPLETE_NEEDED)
-                {
-                    authn_completed = true;
-                }
-
-                if (sec_status == SEC_I_COMPLETE_AND_CONTINUE)
-                {
-                    for (unsigned long i = 1; i < secure_buffer_desc_in.cBuffers; ++i)
-                    {
-                        SecBuffer& secure_buffer = secure_buffer_in[i];
-                        if (secure_buffer.BufferType == SECBUFFER_EXTRA)
-                        {
-                            // Calculate the beginning of the extra bytes
-                            int extra_offset = secure_buffer_in[0].cbBuffer - secure_buffer.cbBuffer;
-                            char* extra_bytes = (char*)secure_buffer_in[0].pvBuffer + extra_offset;
-
-                            // Copy to the beginning of the buffer for next time
-                            memcpy(secure_buffer_in[0].pvBuffer, extra_bytes, secure_buffer.cbBuffer);
-                            recv_offset = secure_buffer.cbBuffer;
-                            break;
-                        }
-                    }
-                }
-
-                break;
-            }
-
-            default:
-                throw Win32Exception(
-                    "establish_client_security_context", "InitializeSecurityContext", sec_status
-                );
-            }
         }
     }
-    catch (...)
-    {
-        SchannelHelper::delete_security_context(&security_context_handle);
-        throw;
-    }
-
-    return security_context_handle;
 }
 
 void SchannelHelper::delete_security_context(SecHandle* security_context)

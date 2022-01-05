@@ -252,30 +252,31 @@ TEST(tls_tests, test_tls_send_10000_messages)
     EXPECT_EQ(message_count, 10000);
 }
 
-TEST(tls_tests, test_client_to_google)
-{
-    try
-    {
-        schannel::winsock_init();
-
-        schannel::TLSConfig tls_config;
-        tls_config.enabled_protocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_3_CLIENT;
-        tls_config.verify_server_cert = false;
-
-        schannel::TLSClient tls_client(tls_config);
-        auto tls_socket = tls_client.connect("www.google.com", 443);
-
-        // std::string get_request = "GET / HTTP/1.1\r\nHost: localhost:8443\r\nConnection: keep-alive\r\nsec-ch-ua: \" Not A;Brand\";v=\"99\", \"Chromium\";v=\"96\", \"Google Chrome\";v=\"96\"\r\nsec-ch-ua-mobile: ?0\r\nsec-ch-ua-platform: \"Windows\"\r\nUpgrade-Insecure-Requests: 1\r\nUser-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.110 Safari/537.36\r\nAccept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9\r\nSec-Fetch-Site: none\r\nSec-Fetch-Mode: navigate\r\nSec-Fetch-User: ?1\r\nSec-Fetch-Dest: document\r\nAccept-Encoding: gzip, deflate, br\r\nAccept-Language: en-US,en;q=0.9\r\n\r\n";
-        std::string get_request = "GET / HTTP/1.1\r\n\r\n";
-        tls_socket.send(get_request.c_str(), get_request.length());
-
-        int response_bytes = tls_socket.recv();
-        std::string get_response(tls_socket.decrypted_buffer(), response_bytes);
-
-        std::cout << get_response << std::endl;
-    }
-    catch (const std::exception& ex)
-    {
-        output_debug(std::string("ERROR: ") + ex.what());
-    }
-}
+//TEST(tls_tests, test_client_to_google)
+//{
+//    try
+//    {
+//        schannel::winsock_init();
+//
+//        schannel::TLSConfig tls_config;
+//        tls_config.enabled_protocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_3_CLIENT;
+//        // tls_config.verify_server_cert = false;
+//
+//        schannel::TLSClient tls_client(tls_config);
+//        auto tls_socket = tls_client.connect("www.google.com", 443);
+//
+//        std::string get_request = "GET / HTTP/1.1\r\n\r\n";
+//        tls_socket.send(get_request.c_str(), get_request.length());
+//
+//        int response_bytes = tls_socket.recv();
+//        std::string get_response(tls_socket.decrypted_buffer(), response_bytes);
+//
+//        std::cout << get_response << std::endl;
+//
+//        tls_socket.close();
+//    }
+//    catch (const std::exception& ex)
+//    {
+//        output_debug(std::string("ERROR: ") + ex.what());
+//    }
+//}

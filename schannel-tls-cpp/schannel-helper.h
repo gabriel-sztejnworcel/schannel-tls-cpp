@@ -32,13 +32,14 @@ public:
         CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket, bool verify_server_cert
     );
 
-    static SecHandle establish_client_security_context_first_stage(
-        CredHandle client_cred_handle, const std::string& hostname, TCPSocket tcp_socket
+    static void establish_client_security_context_first_stage(
+        CredHandle client_cred_handle, const std::string& hostname,
+        TCPSocket tcp_socket, SecHandle& security_context_handle
     );
 
-    static SecHandle establish_client_security_context_second_stage(
-        SecHandle security_context_handle, CredHandle client_cred_handle,
-        const std::string& hostname, TCPSocket tcp_socket, bool verify_server_cert
+    static void establish_client_security_context_second_stage(
+        CredHandle client_cred_handle, const std::string& hostname,
+        TCPSocket tcp_socket, SecHandle& security_context_handle, bool verify_server_cert
     );
 
     static void delete_security_context(SecHandle* security_context);
