@@ -9,72 +9,153 @@
 
 #include "schannel-helper.h"
 #include "win32-exception.h"
+#include "defer-function.h"
 
 #include <sstream>
 #include <memory>
+#include <iostream>
 
 #define SCHANNEL_NEGOTIATE_BUFFER_SIZE 16384
 
 using namespace schannel;
 
+static void init_sec_buffer(SecBuffer& secure_buffer, unsigned long type, unsigned long len, void* buffer)
+{
+    secure_buffer.BufferType = type;
+    secure_buffer.cbBuffer = len;
+    secure_buffer.pvBuffer = buffer;
+}
+
+static void init_sec_buffer_desc(
+    SecBufferDesc& secure_buffer_desc, unsigned long version, unsigned long num_buffers, SecBuffer* buffers)
+{
+    secure_buffer_desc.ulVersion = version;
+    secure_buffer_desc.cBuffers = num_buffers;
+    secure_buffer_desc.pBuffers = buffers;
+}
+
+static void send_and_verify_all_sent(TCPSocket& tcp_socket, const char* buf, int len)
+{
+    int sent = tcp_socket.send(buf, len);
+    if (sent != len)
+    {
+        throw std::runtime_error(
+            "send_and_verify_all_sent: Unexpected number of bytes sent to server"
+        );
+    }
+}
+
+static void free_all_buffers(SecBufferDesc& secure_buffer_desc)
+{
+    for (unsigned long i = 0; i < secure_buffer_desc.cBuffers; ++i)
+    {
+        auto buffer = secure_buffer_desc.pBuffers[i].pvBuffer;
+        if (buffer != nullptr)
+        {
+            FreeContextBuffer(buffer);
+        }
+    }
+}
+
+static std::string hex_dump(BYTE* buf, DWORD len)
+{
+    DWORD i, count, index;
+    CHAR rgb_digits[] = "0123456789abcdef";
+    CHAR rgb_line[100];
+    char cb_line;
+
+    std::stringstream str_stream;
+
+    for (index = 0; len; len -= count, buf += count, index += count)
+    {
+        count = (len > 16) ? 16 : len;
+
+        sprintf_s(rgb_line, 100, "%4.4x  ", index);
+        cb_line = 6;
+
+        for (i = 0; i < count; ++i)
+        {
+            rgb_line[cb_line++] = rgb_digits[buf[i] >> 4];
+            rgb_line[cb_line++] = rgb_digits[buf[i] & 0x0f];
+            if (i == 7)
+            {
+                rgb_line[cb_line++] = ':';
+            }
+            else
+            {
+                rgb_line[cb_line++] = ' ';
+            }
+        }
+        for (; i < 16; i++)
+        {
+            rgb_line[cb_line++] = ' ';
+            rgb_line[cb_line++] = ' ';
+            rgb_line[cb_line++] = ' ';
+        }
+
+        rgb_line[cb_line++] = ' ';
+
+        for (i = 0; i < count; i++)
+        {
+            if (buf[i] < 32 || buf[i] > 126)
+            {
+                rgb_line[cb_line++] = '.';
+            }
+            else
+            {
+                rgb_line[cb_line++] = buf[i];
+            }
+        }
+
+        rgb_line[cb_line++] = 0;
+        str_stream << "    ";
+        str_stream << rgb_line << std::endl;
+    }
+
+    return str_stream.str();
+}
+
 const CERT_CONTEXT* SchannelHelper::get_certificate(
     DWORD cert_store_location, const std::string& cert_store_name, const std::string& cert_subject_match)
 {
-    HCERTSTORE personal_cert_store = nullptr;
-    const CERT_CONTEXT* cert_context = nullptr;
-
-    try
-    {
-        std::wstring cert_store_name_wstr(cert_store_name.begin(), cert_store_name.end());
+    std::wstring cert_store_name_wstr(cert_store_name.begin(), cert_store_name.end());
         
-        personal_cert_store = CertOpenStore(
-            CERT_STORE_PROV_SYSTEM,
-            X509_ASN_ENCODING,
-            0,
-            cert_store_location,
-            cert_store_name_wstr.c_str()
-        );
+    HCERTSTORE personal_cert_store = CertOpenStore(
+        CERT_STORE_PROV_SYSTEM,
+        X509_ASN_ENCODING,
+        0,
+        cert_store_location,
+        cert_store_name_wstr.c_str()
+    );
 
-        if (personal_cert_store == nullptr)
-        {
-            throw Win32Exception(
-                "get_certificate", "CertOpenStore", GetLastError()
-            );
-        }
-
-        // TODO: unique_ptr with custom deleter
-
-        std::wstring cert_subject_wstr(
-            cert_subject_match.begin(), cert_subject_match.end()
-        );
-
-        cert_context = CertFindCertificateInStore(
-            personal_cert_store,
-            X509_ASN_ENCODING,
-            0,
-            CERT_FIND_SUBJECT_STR,
-            cert_subject_wstr.c_str(),
-            nullptr
-        );
-
-        if (cert_context == nullptr)
-        {
-            throw Win32Exception(
-                "get_certificate", "CertFindCertificateInStore", GetLastError()
-            );
-        }
-    }
-    catch (...)
+    if (personal_cert_store == nullptr)
     {
-        if (personal_cert_store != nullptr)
-        {
-            CertCloseStore(personal_cert_store, 0);
-        }
-
-        throw;
+        throw Win32Exception(
+            "get_certificate", "CertOpenStore", GetLastError()
+        );
     }
 
-    CertCloseStore(personal_cert_store, 0);
+    DeferFunction cert_close_store_deferred([personal_cert_store]() { CertCloseStore(personal_cert_store, 0); });
+
+    std::wstring cert_subject_wstr(
+        cert_subject_match.begin(), cert_subject_match.end()
+    );
+
+    const CERT_CONTEXT* cert_context = CertFindCertificateInStore(
+        personal_cert_store,
+        X509_ASN_ENCODING,
+        0,
+        CERT_FIND_SUBJECT_STR,
+        cert_subject_wstr.c_str(),
+        nullptr
+    );
+
+    if (cert_context == nullptr)
+    {
+        throw Win32Exception(
+            "get_certificate", "CertFindCertificateInStore", GetLastError()
+        );
+    }
 
     return cert_context;
 }
@@ -96,17 +177,8 @@ CredHandle SchannelHelper::get_schannel_server_handle(const CERT_CONTEXT* cert_c
     TimeStamp life_time;
     wchar_t unisp_name[] = UNISP_NAME;
 
-    SECURITY_STATUS sec_status = AcquireCredentialsHandle(
-        nullptr,
-        unisp_name,
-        SECPKG_CRED_INBOUND,
-        nullptr,
-        &cred_data,
-        nullptr,
-        nullptr,
-        &cred_handle,
-        &life_time
-    );
+    SECURITY_STATUS sec_status = AcquireCredentialsHandle(nullptr, unisp_name, SECPKG_CRED_INBOUND, nullptr,
+                                                          &cred_data, nullptr, nullptr, &cred_handle, &life_time);
 
     if (sec_status != SEC_E_OK)
     {
@@ -128,17 +200,9 @@ CredHandle SchannelHelper::get_schannel_client_handle(DWORD enabled_protocols)
     TimeStamp life_time;
     wchar_t unisp_name[] = UNISP_NAME;
 
-    SECURITY_STATUS sec_status = AcquireCredentialsHandle(
-        nullptr,
-        unisp_name,
-        SECPKG_CRED_OUTBOUND,
-        nullptr,
-        &cred_data,
-        nullptr,
-        nullptr,
-        &cred_handle,
-        &life_time
-    );
+    SECURITY_STATUS sec_status = AcquireCredentialsHandle(nullptr, unisp_name, SECPKG_CRED_OUTBOUND,
+                                                          nullptr, &cred_data, nullptr, nullptr,
+                                                          &cred_handle, &life_time);
 
     if (sec_status != SEC_E_OK)
     {
@@ -169,103 +233,68 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
     {
         // Input buffer
         auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+        
         SecBuffer secure_buffer_in[2] = { 0 };
-
-        secure_buffer_in[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_in[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
-        secure_buffer_in[0].pvBuffer = buffer_in.get();
-
-        secure_buffer_in[1].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_in[1].cbBuffer = 0;
-        secure_buffer_in[1].pvBuffer = nullptr;
-
+        init_sec_buffer(secure_buffer_in[0], SECBUFFER_TOKEN, SCHANNEL_NEGOTIATE_BUFFER_SIZE, buffer_in.get());
+        init_sec_buffer(secure_buffer_in[1], SECBUFFER_EMPTY, 0, nullptr);
+        
         SecBufferDesc secure_buffer_desc_in = { 0 };
-        secure_buffer_desc_in.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_in.cBuffers = 2;
-        secure_buffer_desc_in.pBuffers = secure_buffer_in;
+        init_sec_buffer_desc(secure_buffer_desc_in, SECBUFFER_VERSION, 2, secure_buffer_in);
 
         // Output buffer
-        auto buffer_out = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
-        SecBuffer secure_buffer_out[1] = { 0 };
-
-        secure_buffer_out[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_out[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
-        secure_buffer_out[0].pvBuffer = buffer_out.get();
-
+        SecBuffer secure_buffer_out[3] = { 0 };
+        init_sec_buffer(secure_buffer_out[0], SECBUFFER_TOKEN, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[1], SECBUFFER_ALERT, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[2], SECBUFFER_EMPTY, 0, nullptr);
+        
         SecBufferDesc secure_buffer_desc_out = { 0 };
-        secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_out.cBuffers = 1;
-        secure_buffer_desc_out.pBuffers = secure_buffer_out;
+        init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 3, secure_buffer_out);
+
+        unsigned long context_requirements = ASC_REQ_ALLOCATE_MEMORY | ASC_REQ_CONFIDENTIALITY;
+
+        // We use ASC_REQ_ALLOCATE_MEMORY which means the buffers will be allocated for us, we need to make sure we free them.
+        DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
 
         ULONG context_attributes = 0;
         TimeStamp life_time = { 0 };
 
-        secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
-
-        SECURITY_STATUS sec_status = AcceptSecurityContext(
-            &server_cred_handle,
-            nullptr,
-            &secure_buffer_desc_in,
-            ASC_REQ_CONFIDENTIALITY,
-            0,
-            &security_context_handle,
-            &secure_buffer_desc_out,
-            &context_attributes,
-            &life_time
-        );
-
-        if (sec_status != SEC_I_CONTINUE_NEEDED)
+        bool authn_completed = false;
+        bool first_iteration = true;
+        while (!authn_completed)
         {
-            throw Win32Exception(
-                "establish_server_security_context", "AcceptSecurityContext", sec_status
-            );
-        }
+            secure_buffer_in[0].cbBuffer = tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
 
-        bool auth_completed = false;
-        while (true)
-        {
-            if (secure_buffer_out[0].cbBuffer > 0)
-            {
-                int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-                if (sent != secure_buffer_out[0].cbBuffer)
-                {
-                    throw std::runtime_error(
-                        "establish_server_security_context: Unexpected number of bytes sent to client"
-                    );
-                }
-            }
+            SECURITY_STATUS sec_status = AcceptSecurityContext(&server_cred_handle,
+                                                               first_iteration ? nullptr : &security_context_handle,
+                                                               &secure_buffer_desc_in, context_requirements, 0,
+                                                               &security_context_handle, &secure_buffer_desc_out,
+                                                               &context_attributes, &life_time);
 
-            if (auth_completed)
-            {
-                break;
-            }
-
-            secure_buffer_in[0].cbBuffer =
-                tcp_socket.recv((char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
-
-            SECURITY_STATUS sec_status = AcceptSecurityContext(
-                &server_cred_handle,
-                &security_context_handle,
-                &secure_buffer_desc_in,
-                ASC_REQ_CONFIDENTIALITY,
-                0,
-                &security_context_handle,
-                &secure_buffer_desc_out,
-                &context_attributes,
-                &life_time
-            );
-
-            SECURITY_STATUS complete_sec_status = SEC_E_OK;
+            first_iteration = false;
 
             switch (sec_status)
             {
+            case SEC_E_OK:
+            case SEC_I_CONTINUE_NEEDED:
+                
+                if (secure_buffer_out[0].cbBuffer > 0)
+                {
+                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+                }
+
+                if (sec_status == SEC_E_OK)
+                {
+                    authn_completed = true;
+                }
+
+                break;
+                break;
+
             case SEC_I_COMPLETE_AND_CONTINUE:
             case SEC_I_COMPLETE_NEEDED:
-
-                complete_sec_status = CompleteAuthToken(
-                    &security_context_handle,
-                    &secure_buffer_desc_out
-                );
+            {
+                SECURITY_STATUS complete_sec_status = SEC_E_OK; 
+                complete_sec_status = CompleteAuthToken(&security_context_handle, &secure_buffer_desc_out);
 
                 if (complete_sec_status != SEC_E_OK)
                 {
@@ -274,20 +303,18 @@ SecHandle SchannelHelper::establish_server_security_context(CredHandle server_cr
                     );
                 }
 
+                if (secure_buffer_out[0].cbBuffer > 0)
+                {
+                    send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+                }
+
                 if (sec_status == SEC_I_COMPLETE_NEEDED)
                 {
-                    auth_completed = true;
+                    authn_completed = true;
                 }
 
                 break;
-
-            case SEC_I_CONTINUE_NEEDED:
-                // Nothing, another iteration
-                break;
-
-            case SEC_E_OK:
-                auth_completed = true;
-                break;
+            }
 
             default:
                 throw Win32Exception(
@@ -312,143 +339,13 @@ SecHandle SchannelHelper::establish_client_security_context(
 
     try
     {
-        // Input buffer
-        auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
-        SecBuffer secure_buffer_in[2] = { 0 };
-
-        secure_buffer_in[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_in[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
-        secure_buffer_in[0].pvBuffer = buffer_in.get();
-
-        secure_buffer_in[1].BufferType = SECBUFFER_EMPTY;
-        secure_buffer_in[1].cbBuffer = 0;
-        secure_buffer_in[1].pvBuffer = nullptr;
-
-        SecBufferDesc secure_buffer_desc_in = { 0 };
-        secure_buffer_desc_in.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_in.cBuffers = 2;
-        secure_buffer_desc_in.pBuffers = secure_buffer_in;
-
-        // Output buffer
-        auto buffer_out = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
-        SecBuffer secure_buffer_out[1] = { 0 };
-
-        secure_buffer_out[0].BufferType = SECBUFFER_TOKEN;
-        secure_buffer_out[0].cbBuffer = SCHANNEL_NEGOTIATE_BUFFER_SIZE;
-        secure_buffer_out[0].pvBuffer = buffer_out.get();
-
-        SecBufferDesc secure_buffer_desc_out = { 0 };
-        secure_buffer_desc_out.ulVersion = SECBUFFER_VERSION;
-        secure_buffer_desc_out.cBuffers = 1;
-        secure_buffer_desc_out.pBuffers = secure_buffer_out;
-
-        ULONG context_attributes = 0;
-        TimeStamp life_time = { 0 };
-
-        std::wstring hostname_wstr(hostname.begin(), hostname.end());
-
-        SECURITY_STATUS sec_status = InitializeSecurityContext(
-            &client_cred_handle,
-            nullptr,
-            (wchar_t*)hostname_wstr.c_str(),
-            ISC_REQ_CONFIDENTIALITY,
-            0,
-            SECURITY_NATIVE_DREP,
-            nullptr,
-            0,
-            &security_context_handle,
-            &secure_buffer_desc_out,
-            &context_attributes,
-            &life_time
+        SchannelHelper::establish_client_security_context_first_stage(
+            client_cred_handle, hostname, tcp_socket, security_context_handle
         );
 
-        if (sec_status != SEC_I_CONTINUE_NEEDED)
-        {
-            throw Win32Exception(
-                "establish_client_security_context", "InitializeSecurityContext", sec_status
-            );
-        }
-
-        bool auth_completed = false;
-        while (!auth_completed)
-        {
-            int sent = tcp_socket.send((const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
-            if (sent != secure_buffer_out[0].cbBuffer)
-            {
-                throw std::runtime_error(
-                    "establish_client_security_context: Unexpected number of bytes sent to server"
-                );
-            }
-
-            secure_buffer_in[0].cbBuffer = tcp_socket.recv(
-                (char*)secure_buffer_in[0].pvBuffer, SCHANNEL_NEGOTIATE_BUFFER_SIZE
-            );
-
-            unsigned long context_requirements = ISC_REQ_CONFIDENTIALITY;
-            if (!verify_server_cert)
-            {
-                context_requirements |= ISC_REQ_MANUAL_CRED_VALIDATION;
-            }
-
-            SECURITY_STATUS sec_status = InitializeSecurityContext(
-                &client_cred_handle,
-                &security_context_handle,
-                (wchar_t*)hostname_wstr.c_str(),
-                context_requirements,
-                0,
-                SECURITY_NATIVE_DREP,
-                &secure_buffer_desc_in,
-                0,
-                &security_context_handle,
-                &secure_buffer_desc_out,
-                &context_attributes,
-                &life_time
-            );
-
-            SECURITY_STATUS complete_sec_status = SEC_E_OK;
-
-            switch (sec_status)
-            {
-            case SEC_I_COMPLETE_AND_CONTINUE:
-            case SEC_I_COMPLETE_NEEDED:
-
-                complete_sec_status = CompleteAuthToken(
-                    &security_context_handle,
-                    &secure_buffer_desc_out
-                );
-
-                if (complete_sec_status != SEC_E_OK)
-                {
-                    throw Win32Exception(
-                        "establish_client_security_context", "CompleteAuthToken", complete_sec_status
-                    );
-                }
-
-                if (sec_status == SEC_I_COMPLETE_NEEDED)
-                {
-                    auth_completed = true;
-                }
-
-                break;
-
-            case SEC_I_CONTINUE_NEEDED:
-                // Nothing, another iteration
-                break;
-
-            case SEC_E_UNTRUSTED_ROOT:
-                throw std::runtime_error("establish_client_security_context: Untrusted root CA");
-
-            case SEC_I_INCOMPLETE_CREDENTIALS:
-            case SEC_E_INCOMPLETE_MESSAGE:
-                throw Win32Exception(
-                    "establish_client_security_context", "InitializeSecurityContext", sec_status
-                );
-
-            case SEC_E_OK:
-                auth_completed = true;
-                break;
-            }
-        }
+        SchannelHelper::establish_client_security_context_second_stage(
+            client_cred_handle, hostname, tcp_socket, security_context_handle, verify_server_cert
+        );
     }
     catch (...)
     {
@@ -457,6 +354,150 @@ SecHandle SchannelHelper::establish_client_security_context(
     }
 
     return security_context_handle;
+}
+
+void SchannelHelper::establish_client_security_context_first_stage(
+    CredHandle client_cred_handle, const std::string& hostname,
+    TCPSocket tcp_socket, SecHandle& security_context_handle)
+{
+    ULONG context_attributes = 0;
+    unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
+    std::wstring hostname_wstr(hostname.begin(), hostname.end());
+
+    TimeStamp life_time = { 0 };
+
+    SecBuffer secure_buffer_out[1] = { 0 };
+    init_sec_buffer(secure_buffer_out[0], SECBUFFER_EMPTY, 0, nullptr);
+
+    SecBufferDesc secure_buffer_desc_out = { 0 };
+    init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 1, secure_buffer_out);
+
+    DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
+
+    SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, nullptr, (wchar_t*)hostname.c_str(),
+                                                           context_requirements, 0, 0, nullptr, 0, &security_context_handle,
+                                                           &secure_buffer_desc_out, &context_attributes, &life_time);
+
+    if (sec_status != SEC_I_CONTINUE_NEEDED)
+    {
+        throw std::runtime_error(
+            "InitializeSecurityContext: " + std::to_string(sec_status)
+        );
+    }
+
+    if (secure_buffer_out[0].cbBuffer > 0)
+    {
+        send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+    }
+}
+
+void SchannelHelper::establish_client_security_context_second_stage(
+    CredHandle client_cred_handle, const std::string& hostname,
+    TCPSocket tcp_socket, SecHandle& security_context_handle, bool verify_server_cert)
+{
+    ULONG context_attributes = 0;
+
+    unsigned long context_requirements = ISC_REQ_ALLOCATE_MEMORY | ISC_REQ_CONFIDENTIALITY;
+    if (!verify_server_cert)
+    {
+        context_requirements |= ISC_REQ_MANUAL_CRED_VALIDATION;
+    }
+
+    std::wstring hostname_wstr(hostname.begin(), hostname.end());
+
+    TimeStamp life_time = { 0 };
+
+    // Input buffer
+    auto buffer_in = std::make_unique<char[]>(SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+
+    int offset = 0;
+    bool skip_recv = false;
+
+    bool authn_complete = false;
+    while (!authn_complete)
+    {
+        int in_buffer_size = 0;
+
+        if (!skip_recv)
+        {
+            int received = tcp_socket.recv(buffer_in.get() + offset, SCHANNEL_NEGOTIATE_BUFFER_SIZE);
+            in_buffer_size = received + offset;
+        }
+        else
+        {
+            in_buffer_size = offset;
+        }
+
+        skip_recv = false;
+        offset = 0;
+
+        // Input buffer
+        SecBuffer secure_buffer_in[4] = { 0 };
+        init_sec_buffer(secure_buffer_in[0], SECBUFFER_TOKEN, in_buffer_size, buffer_in.get());
+        init_sec_buffer(secure_buffer_in[1], SECBUFFER_EMPTY, 0, nullptr);
+        init_sec_buffer(secure_buffer_in[2], SECBUFFER_EMPTY, 0, nullptr);
+        init_sec_buffer(secure_buffer_in[3], SECBUFFER_EMPTY, 0, nullptr);
+
+        SecBufferDesc secure_buffer_desc_in = { 0 };
+        init_sec_buffer_desc(secure_buffer_desc_in, SECBUFFER_VERSION, 4, secure_buffer_in);
+
+        // Output buffer
+        SecBuffer secure_buffer_out[3] = { 0 };
+        init_sec_buffer(secure_buffer_out[0], SECBUFFER_TOKEN, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[1], SECBUFFER_ALERT, 0, nullptr);
+        init_sec_buffer(secure_buffer_out[2], SECBUFFER_EMPTY, 0, nullptr);
+
+        SecBufferDesc secure_buffer_desc_out = { 0 };
+        init_sec_buffer_desc(secure_buffer_desc_out, SECBUFFER_VERSION, 3, secure_buffer_out);
+
+        DeferFunction free_buffers_deferred([&secure_buffer_desc_out]() { free_all_buffers(secure_buffer_desc_out); });
+
+        SECURITY_STATUS sec_status = InitializeSecurityContext(&client_cred_handle, &security_context_handle,
+                                                               (wchar_t*)hostname.c_str(), context_requirements, 0, 0,
+                                                               &secure_buffer_desc_in, 0, &security_context_handle,
+                                                               &secure_buffer_desc_out, &context_attributes, &life_time);
+
+        if (sec_status == SEC_E_OK ||
+            sec_status == SEC_I_CONTINUE_NEEDED)
+        {
+            if (secure_buffer_out[0].cbBuffer > 0)
+            {
+                send_and_verify_all_sent(tcp_socket, (const char*)secure_buffer_out[0].pvBuffer, secure_buffer_out[0].cbBuffer);
+            }
+
+            if (sec_status == SEC_I_CONTINUE_NEEDED)
+            {
+                for (int i = 1; i < 3; ++i)
+                {
+                    if (secure_buffer_in[i].BufferType == SECBUFFER_EXTRA &&
+                        secure_buffer_in[i].cbBuffer > 0)
+                    {
+                        offset = secure_buffer_in[0].cbBuffer - secure_buffer_in[i].cbBuffer;
+                        memmove(buffer_in.get(), buffer_in.get() + offset, secure_buffer_in[i].cbBuffer);
+                        offset = secure_buffer_in[i].cbBuffer;
+
+                        skip_recv = true;
+                        break;
+                    }
+                }
+            }
+
+            if (sec_status == SEC_E_OK)
+            {
+                authn_complete = true;
+            }
+        }
+        else if (sec_status == SEC_E_INCOMPLETE_MESSAGE)
+        {
+            offset = secure_buffer_in[0].cbBuffer;
+        }
+        else
+        {
+            throw std::runtime_error(
+                "InitializeSecurityContext: " + std::to_string(sec_status)
+            );
+        }
+    }
 }
 
 void SchannelHelper::delete_security_context(SecHandle* security_context)
@@ -504,36 +545,17 @@ int SchannelHelper::encrypt_message(SecHandle security_context, SecPkgContext_St
     }
 
     SecBuffer secure_buffers[4] = { 0 };
-
-    secure_buffers[0].BufferType = SECBUFFER_STREAM_HEADER;
-    secure_buffers[0].cbBuffer = stream_sizes.cbHeader;
-    secure_buffers[0].pvBuffer = out_buf;
-
-    secure_buffers[1].BufferType = SECBUFFER_DATA;
-    secure_buffers[1].cbBuffer = in_len;
-    secure_buffers[1].pvBuffer = out_buf + stream_sizes.cbHeader;
-
-    secure_buffers[2].BufferType = SECBUFFER_STREAM_TRAILER;
-    secure_buffers[2].cbBuffer = stream_sizes.cbTrailer;
-    secure_buffers[2].pvBuffer = out_buf + stream_sizes.cbHeader + in_len;
-
-    secure_buffers[3].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[3].cbBuffer = 0;
-    secure_buffers[3].pvBuffer = nullptr;
+    init_sec_buffer(secure_buffers[0], SECBUFFER_STREAM_HEADER, stream_sizes.cbHeader, out_buf);
+    init_sec_buffer(secure_buffers[1], SECBUFFER_DATA, in_len, out_buf + stream_sizes.cbHeader);
+    init_sec_buffer(secure_buffers[2], SECBUFFER_STREAM_TRAILER, stream_sizes.cbTrailer, out_buf + stream_sizes.cbHeader + in_len);
+    init_sec_buffer(secure_buffers[3], SECBUFFER_EMPTY, 0, nullptr);
     
     SecBufferDesc secure_buffer_desc = { 0 };
-    secure_buffer_desc.ulVersion = SECBUFFER_VERSION;
-    secure_buffer_desc.cBuffers = 4;
-    secure_buffer_desc.pBuffers = secure_buffers;
+    init_sec_buffer_desc(secure_buffer_desc, SECBUFFER_VERSION, 4, secure_buffers);
 
     memcpy(secure_buffers[1].pvBuffer, in_buf, in_len);
 
-    SECURITY_STATUS sec_status = EncryptMessage(
-        &security_context,
-        0,
-        &secure_buffer_desc,
-        0
-    );
+    SECURITY_STATUS sec_status = EncryptMessage(&security_context, 0, &secure_buffer_desc, 0);
 
     if (sec_status != SEC_E_OK)
     {
@@ -561,37 +583,18 @@ int SchannelHelper::decrypt_message(SecHandle security_context, SecPkgContext_St
     auto decrypt_buf = std::make_unique<char[]>(in_len);
 
     SecBuffer secure_buffers[4] = { 0 };
-
-    secure_buffers[0].BufferType = SECBUFFER_DATA;
-    secure_buffers[0].cbBuffer = in_len;
-    secure_buffers[0].pvBuffer = decrypt_buf.get();
-
-    secure_buffers[1].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[1].cbBuffer = 0;
-    secure_buffers[1].pvBuffer = nullptr;
-
-    secure_buffers[2].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[2].cbBuffer = 0;
-    secure_buffers[2].pvBuffer = nullptr;
-
-    secure_buffers[3].BufferType = SECBUFFER_EMPTY;
-    secure_buffers[3].cbBuffer = 0;
-    secure_buffers[3].pvBuffer = nullptr;
+    init_sec_buffer(secure_buffers[0], SECBUFFER_DATA, in_len, decrypt_buf.get());
+    init_sec_buffer(secure_buffers[1], SECBUFFER_EMPTY, 0, nullptr);
+    init_sec_buffer(secure_buffers[2], SECBUFFER_EMPTY, 0, nullptr);
+    init_sec_buffer(secure_buffers[3], SECBUFFER_EMPTY, 0, nullptr);
     
     SecBufferDesc secure_buffer_desc = { 0 };
-    secure_buffer_desc.ulVersion = SECBUFFER_VERSION;
-    secure_buffer_desc.cBuffers = 4;
-    secure_buffer_desc.pBuffers = secure_buffers;
+    init_sec_buffer_desc(secure_buffer_desc, SECBUFFER_VERSION, 4, secure_buffers);
 
     // Copy encrypted message to in-out temp buffer
     memcpy(decrypt_buf.get(), in_buf, in_len);
 
-    SECURITY_STATUS sec_status = DecryptMessage(
-        &security_context,
-        &secure_buffer_desc,
-        0,
-        nullptr
-    );
+    SECURITY_STATUS sec_status = DecryptMessage(&security_context, &secure_buffer_desc, 0, nullptr);
 
     if (sec_status == SEC_E_INCOMPLETE_MESSAGE)
     {

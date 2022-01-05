@@ -115,6 +115,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="defer-function.h" />
     <ClInclude Include="schannel-helper.h" />
     <ClInclude Include="tcp-server.h" />
     <ClInclude Include="tcp-socket.h" />
@@ -126,6 +127,7 @@
     <ClInclude Include="win32-exception.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="defer-function.cpp" />
     <ClCompile Include="schannel-helper.cpp" />
     <ClCompile Include="tcp-server.cpp" />
     <ClCompile Include="tcp-socket.cpp" />

@@ -9,6 +9,7 @@
 #include <tcp-server.h>
 #include <tls-client.h>
 #include <tls-server.h>
+#include <defer-function.h>
 
 #include <thread>
 #include <mutex>
@@ -44,6 +45,22 @@ int count_str(const char* buf, int len, const std::string& str_to_count)
     }
 
     return count;
+}
+
+TEST(defer_function_test, test_simple_deferred_function)
+{
+    std::string msg;
+    
+    {
+        DeferFunction defer_function([&msg]()
+        {
+            msg = "Hello World";
+        });
+
+        EXPECT_NE(msg, "Hello World");
+    }
+
+    EXPECT_EQ(msg, "Hello World");
 }
 
 TEST(tcp_tests, test_simple_tcp_client_server)
@@ -234,3 +251,32 @@ TEST(tls_tests, test_tls_send_10000_messages)
 
     EXPECT_EQ(message_count, 10000);
 }
+
+//TEST(tls_tests, test_client_to_google)
+//{
+//    try
+//    {
+//        schannel::winsock_init();
+//
+//        schannel::TLSConfig tls_config;
+//        tls_config.enabled_protocols = SP_PROT_TLS1_2_CLIENT | SP_PROT_TLS1_3_CLIENT;
+//        // tls_config.verify_server_cert = false;
+//
+//        schannel::TLSClient tls_client(tls_config);
+//        auto tls_socket = tls_client.connect("www.google.com", 443);
+//
+//        std::string get_request = "GET / HTTP/1.1\r\n\r\n";
+//        tls_socket.send(get_request.c_str(), get_request.length());
+//
+//        int response_bytes = tls_socket.recv();
+//        std::string get_response(tls_socket.decrypted_buffer(), response_bytes);
+//
+//        std::cout << get_response << std::endl;
+//
+//        tls_socket.close();
+//    }
+//    catch (const std::exception& ex)
+//    {
+//        output_debug(std::string("ERROR: ") + ex.what());
+//    }
+//}
