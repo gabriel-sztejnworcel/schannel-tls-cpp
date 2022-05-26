@@ -1,5 +1,5 @@
 # schannel-tls-cpp
-schannel-tls-cpp is a TLS client/server library for Windows that uses Windows' built-in TLS implementation (schannel).
+A TLS client/server library for Windows that uses Windows' built-in TLS implementation (schannel).
 
 SSPI/Schannel documentation:  
 https://docs.microsoft.com/en-us/windows/win32/rpc/security-support-provider-interface-sspi-  
